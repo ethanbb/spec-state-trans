@@ -3,8 +3,8 @@
 prepSR;
 
 result_files = {
-    fullfile(project_dir, 'forEthan', '2020-01-31', '12-52-00', 'mt_res_coarse.mat')
-    fullfile(project_dir, 'forEthan', '2020-01-31', '15-26-00', 'mt_res_coarse.mat')
+    fullfile(results_dir, '2020-01-31', '12-52-00', 'mt_res_coarse.mat')
+    fullfile(results_dir, '2020-01-31', '15-26-00', 'mt_res_coarse.mat')
     };
 
 % take components explaining at least 1% of variance
