@@ -1,41 +1,57 @@
-function plot_multitaper(mt_res, bsave, chans)
-% Input: output struct of multitaper_analysis (contents of mt_res.mat)
-% If provided, 'bsave' specifies whether to save the figures in the current
-%               directory.
-% If provided, 'chans' specifies which among the available channels to use
-%               (i.e. [1, 3] would be the first and third *analyzed*
-%               channel.) Must be a vector of length 1 or 2.
+function plot_multitaper(result, options)
+% Input: output struct of multitaper_analysis (contents of mt_res.mat), or
+% MAT-filename containing these results.
 
-n_chans_in = length(mt_res.options.chans);
+default_savedir = pwd;
+if ischar(result)
+    default_savedir = fileparts(result);
+    result = load(result);
+end
+
+opts = struct(...
+    'chans',     'all',                  ... which channels, of those analyzed, to plot
+    'save',      true,                   ... whether to save the figure
+    'savedir',   default_savedir,        ... directory, if saving
+    'filename',  'multitaper.fig'        ... filename, if saving
+    );
+
+if nargin < 2 || isempty(options)
+    options = struct;
+end
+
+opts_in = fieldnames(options);
+for kO = 1:length(opts_in)
+    opts.(opts_in{KO}) = options.(opts_in{kO});
+end
+
+n_chans_in = length(result.options.chans);
 assert(n_chans_in >= 1, 'No channels in input data');
 
-if nargin < 3 || isempty(chans)
-    chans = 1:n_chans_in;
+% process options
+if ischar(opts.chans)
+    assert(strcmpi(opts.chans, 'all'), 'Unrecognized ''chans'' input');
+    opts.chans = 1:n_chans_in;
 else
-    assert(max(chans) <= n_chans_in, 'Channels beyond number available requested');
-    chans = chans(:).';
+    assert(max(opts.chans) <= n_chans_in, 'Channels beyond number available requested');
 end
-n_chans = length(chans);
-    
-if nargin < 2 || isempty(bsave)
-    bsave = true;
-end
+opts.chans = opts.chans(:).';
+n_chans = length(opts.chans);
 
 h_fig = figure;
 h_ax = gobjects(n_chans, 2);
 
-chan_names = mt_res.options.chan_names;
+chan_names = result.options.chan_names;
 
 for kC = 1:n_chans
     
-    chan = chans(kC);
+    chan = opts.chans(kC);
     
     % Plot power and normalized power spectra    
-    pxx_db = 10*log10(mt_res.pxx{chan});
+    pxx_db = 10*log10(result.pxx{chan});
         
     h_ax(kC, 1) = subplot(n_chans, 2, kC*2 - 1);
     newplot;
-    surface(mt_res.time_grid, mt_res.freq_grid, pxx_db, 'EdgeColor', 'none');
+    surface(result.time_grid, result.freq_grid, pxx_db, 'EdgeColor', 'none');
     set(gca, 'YScale', 'log');
     axis tight;
     xlabel('Time (s)');
@@ -43,13 +59,13 @@ for kC = 1:n_chans
     title(sprintf('Power in %s (dB)', chan_names{kC}));
 
     % include normalized/centered plot
-    pxx_norm = mt_res.pxx{chan} ./ sum(mt_res.pxx{chan});
+    pxx_norm = result.pxx{chan} ./ sum(result.pxx{chan});
     pxx_norm_db = 10*log10(pxx_norm);
     pxx_norm_db_centered = pxx_norm_db - nanmean(pxx_norm_db, 2);
     
     h_ax(kC, 2) = subplot(n_chans, 2, kC*2);
     newplot;
-    surface(mt_res.time_grid, mt_res.freq_grid, pxx_norm_db_centered, 'EdgeColor', 'none');
+    surface(result.time_grid, result.freq_grid, pxx_norm_db_centered, 'EdgeColor', 'none');
     set(gca, 'YScale', 'log');
     axis tight;
     xlabel('Time (s)');
@@ -60,8 +76,8 @@ end
 linkaxes(h_ax, 'x');
 
 % Save figure
-if bsave
-    savefig(h_fig, 'multitaper.fig', 'compact');
+if opts.save
+    savefig(h_fig, fullfile(opts.savedir, opts.filename), 'compact');
 end
 
 end

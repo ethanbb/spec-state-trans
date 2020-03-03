@@ -38,6 +38,7 @@ opts = struct(...
    'max_freq',   300,            ... max freq of interest (min freq is determined by n_tapers & window)
    'inc_phase',  false,          ... whether to include the phase
    'save',       true,           ... whether to save the results struct before returning
+   'savedir',    pwd,            ... directory in which to save
    'filename',   'mt_res.mat'    ... filename to save
 );
 
@@ -150,7 +151,7 @@ for kS = 1:n_segs
 end
 
 if opts.save
-    save(opts.filename, '-struct', 'res');
+    save(fullfile(opts.savedir, opts.filename), '-struct', 'res');
 end
 
 end
