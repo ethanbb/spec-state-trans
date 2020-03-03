@@ -110,6 +110,7 @@ end
 
 figure;
 imagesc(coeff(:, 1:num2keep));
+axis tight;
 set(gca, 'YDir', 'normal');
 set(gca, 'XTick', 1:num2keep);
 

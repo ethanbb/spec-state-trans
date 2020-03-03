@@ -3,11 +3,11 @@
 prepSR;
 
 result_files = {
-    fullfile(project_dir, 'forEthan', '2020-01-30', '16-03-00', 'mt_res.mat')
-    fullfile(project_dir, 'forEthan', '2020-01-31', '12-52-00', 'mt_res.mat')
-    fullfile(project_dir, 'forEthan', '2020-01-31', '15-26-00', 'mt_res.mat')
-    fullfile(project_dir, 'forEthan', '2020-02-06', '13-47-00', 'mt_res.mat')
-    fullfile(project_dir, 'forEthan', '2020-02-06', '16-01-00', 'mt_res.mat')
+    fullfile(results_dir, '2020-01-30', '16-03-00', 'mt_res.mat')
+    fullfile(results_dir, '2020-01-31', '12-52-00', 'mt_res.mat')
+    fullfile(results_dir, '2020-01-31', '15-26-00', 'mt_res.mat')
+    fullfile(results_dir, '2020-02-06', '13-47-00', 'mt_res.mat')
+    fullfile(results_dir, '2020-02-06', '16-01-00', 'mt_res.mat')
     };
 
 % take components explaining at least 1% of variance
