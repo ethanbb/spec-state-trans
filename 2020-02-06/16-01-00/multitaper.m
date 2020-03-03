@@ -1,14 +1,16 @@
-%% load data
+%% set dataset info
+
+prepSR;
 
 date = '2020-02-06';
 time = '16-01-00';
 
-prepSR;
-data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', date, time)));
-
-%% do analysis
-
 savedir = fullfile(results_dir, date, time);
+
+
+%% load and do analysis
+
+data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', date, time)));
 
 len_secs = size(data_s.meanSubFullTrace, 2) / data_s.finalSampR;
 

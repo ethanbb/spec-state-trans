@@ -21,7 +21,7 @@ end
 
 opts_in = fieldnames(options);
 for kO = 1:length(opts_in)
-    opts.(opts_in{KO}) = options.(opts_in{kO});
+    opts.(opts_in{kO}) = options.(opts_in{kO});
 end
 
 n_chans_in = length(result.options.chans);
@@ -37,7 +37,7 @@ end
 opts.chans = opts.chans(:).';
 n_chans = length(opts.chans);
 
-h_fig = figure;
+h_fig = figure('Position', [0, 0, 1800, 450*n_chans]);
 h_ax = gobjects(n_chans, 2);
 
 chan_names = result.options.chan_names;
