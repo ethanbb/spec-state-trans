@@ -15,6 +15,7 @@ opts = struct(...
     'rel_chans',     'all',          ... which channels to use, of those available (array or 'all' (default))
     'smooth_span',   10,             ... span in seconds to smooth the change (before interpolating)
     'smooth_method', 'movmean',      ... smoothing method (3rd argument of smoothdata)
+    'norm_type',     2,              ... second input to vecnorm (default is Euclidian distance)
     'interp_factor', 1,              ... set to >1 to interpolate change by an integer factor
     'interp_method', 'makima',       ... interpolation method (4th argument of interp1)
     'xcorr_pairs',   {{}},           ... pairs (2-element vectors) of indices of rel_chans to plot xcorr of
@@ -52,16 +53,20 @@ end
 % compute norm of change in pca data == change speed
 Fs = 1 / data_s.options.winstep; % window step = sample period of TFR data
 
-pca_change_raw = cellfun(@(pcd) Fs * vecnorm(diff(pcd, 1, 2)), ...
-    data_s.(opts.pca_name)(opts.rel_chans), 'uni', false);
+% smooth before diffing
+sm_span_samp = Fs * opts.smooth_span;
+data_raw = data_s.(opts.pca_name)(opts.rel_chans);
+data_sm = cellfun(@(pcd) smoothdata(pcd, 2, opts.smooth_method, sm_span_samp, 'includenan'), ...
+    data_raw, 'uni', false);
+
+pca_change_raw = cellfun(@(pcd) Fs * vecnorm(diff(pcd, 1, 2), opts.norm_type), data_raw, 'uni', false);
 pca_change_raw = vertcat(pca_change_raw{:});
+
+pca_change = cellfun(@(pcd) Fs * vecnorm(diff(pcd, 1, 2), opts.norm_type), data_sm, 'uni', false);
+pca_change = vertcat(pca_change{:});
 
 pca_time = data_s.time_grid;
 pca_change_time = mean([pca_time(1:end-1); pca_time(2:end)]);
-
-% smooth result
-sm_span_samp = Fs * opts.smooth_span;
-pca_change = smoothdata(pca_change_raw, 2, opts.smooth_method, sm_span_samp);
 
 % interpolate if needed
 if opts.interp_factor > 1
@@ -89,7 +94,7 @@ if opts.plot
     for kC = 1:n_chans       
         subplot(n_chans, 1, kC);
         
-        if opts.smooth_span > 1
+        if sm_span_samp > 1
             plot(pca_change_time, pca_change_raw_interp(kC, :), 'k');
             hold on;
         end
