@@ -1,4 +1,4 @@
-function pc_data_all = mt_pca(result_files, options)
+function [pc_data_all, fh] = mt_pca(result_files, options)
 % Do PCA in the frequency domain on multitaper results
 % result_files: cell of mt_res mat files to use
 % options: overrides of opts struct below
@@ -12,6 +12,7 @@ function pc_data_all = mt_pca(result_files, options)
 % returns a cell containing PC-space data for each input dataset
 % if input is not a cell, output is unpacked one layer (but is still a cell
 % of data from each channel)
+% second output is an array of figure handles.
 
 opts = struct(...
     'name',             'pxx_pca',  ... variable name of output in each input file
@@ -61,7 +62,8 @@ for kF = 1:n_files
     chans = opts.chans{kF};
     if ischar(chans)
         assert(strcmpi(chans, 'all'), 'Unrecognized ''chans'' input');
-        chans = 1:numel(mfile.pxx);
+        opts.chans{kF} = 1:numel(mfile.pxx);
+        chans = opts.chans{kF};
     end
     
     pxx_file = mfile.pxx;
@@ -85,7 +87,9 @@ else
     
 end
 
-figure
+fh = gobjects(2, 1);
+
+fh(1) = figure;
 cumvar = cumsum(explained);
 plot(cumvar, 'r*-', 'LineWidth', 2);
 xlabel('PC#');
@@ -108,7 +112,7 @@ end
 
 %---------- Visualize the PCs ----------%
 
-figure;
+fh(2) = figure;
 imagesc(coeff(:, 1:num2keep));
 axis tight;
 set(gca, 'YDir', 'normal');
@@ -149,8 +153,9 @@ assert(n_assigned == size(pc_data, 1), 'Uh oh, there''s an indexing problem');
 if opts.save
     for kF = 1:n_files
         mfile = matfile(result_files{kF}, 'Writable', true');
-        mfile.(opts.name) = pc_data_all{kF};
-        mfile.pca_opts = opts;
+        mfile.(opts.name) = cell(numel(mfile.pxx), 1);
+        mfile.(opts.name)(opts.chans{kF}, 1) = pc_data_all{kF};
+        mfile.([opts.name, '_opts']) = opts;
     end
 end
 

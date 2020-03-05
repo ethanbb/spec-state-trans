@@ -13,6 +13,7 @@ function [pca_change, pca_change_time] = pca_change(result_file, options)
 opts = struct(...
     'pca_name',      'pxx_pca',      ... variable name of PCA input within input file
     'rel_chans',     'all',          ... which channels to use, of those available (array or 'all' (default))
+    'comps',         'all',          ... which components to use (array or 'all')
     'smooth_span',   10,             ... span in seconds to smooth the change (before interpolating)
     'smooth_method', 'movmean',      ... smoothing method (3rd argument of smoothdata)
     'norm_type',     2,              ... second input to vecnorm (default is Euclidian distance)
@@ -20,6 +21,7 @@ opts = struct(...
     'interp_method', 'makima',       ... interpolation method (4th argument of interp1)
     'xcorr_pairs',   {{}},           ... pairs (2-element vectors) of indices of rel_chans to plot xcorr of
     'plot',          true,           ... whether to do plotting
+    'plot_raw',      false,          ... whether to include raw (unsmoothed) change in plot
     'save',          true,           ... whether to save result in original file
     'name',          'pca_change',   ... variable name to save (with '_time' appended for x-axis)
     'savefigs',      true            ... whether to save figures in parent dir of input file
@@ -34,15 +36,28 @@ for kO = 1:length(opts_in)
     opts.(opts_in{kO}) = options.(opts_in{kO});
 end
 
+%------------ validate options/input ------------------
+
 data_s = load(result_file);
 
 assert(isfield(data_s, opts.pca_name), 'Specified PCA results do not exist');
-n_chans = numel(data_s.(opts.pca_name));
+
+valid_chans = ~cellfun(@isempty, data_s.(opts.pca_name));
+valid_names = data_s.name(valid_chans);
+valid_data = data_s.(opts.pca_name)(valid_chans);
+
+n_chans = numel(valid_data);
 assert(n_chans > 0, 'Specified PCA results do not exist');
 
 if ischar(opts.rel_chans)
     assert(strcmpi(opts.rel_chans, 'all'), 'Unrecognized input for rel_chans');
-    opts.rel_chans = 1:numel(data_s.(opts.pca_name));
+    opts.rel_chans = 1:numel(valid_data);
+end
+
+assert(~isempty(opts.rel_chans), 'No channels selected');
+if ischar(opts.comps)
+    assert(strcmpi(opts.comps, 'all'), 'Unrecognized input for comps');
+    opts.comps = 1:size(valid_data{1}, 1);
 end
 
 % allow xcorr_pairs to be specified as an n x 2 matrix
@@ -50,15 +65,22 @@ if ~iscell(opts.xcorr_pairs)
     opts.xcorr_pairs = num2cell(opts.xcorr_pairs, 2);
 end
 
-% compute norm of change in pca data == change speed
-Fs = 1 / data_s.options.winstep; % window step = sample period of TFR data
+Fs = 1 / data_s.options.winstep;  % window step = sample period of TFR data
+sm_span_samp = Fs * opts.smooth_span;
+opts.plot_raw = opts.plot_raw && sm_span_samp > 1; % if not smoothing, don't need to plot raw data
+
+%-----------------------------------
+
+% select channels and components
+names = valid_names(opts.rel_chans);
+data_raw = valid_data(opts.rel_chans);
+data_raw = cellfun(@(pcd) pcd(opts.comps, :), data_raw, 'uni', false);
 
 % smooth before diffing
-sm_span_samp = Fs * opts.smooth_span;
-data_raw = data_s.(opts.pca_name)(opts.rel_chans);
 data_sm = cellfun(@(pcd) smoothdata(pcd, 2, opts.smooth_method, sm_span_samp, 'includenan'), ...
     data_raw, 'uni', false);
 
+% compute norm of change in pca data == change speed
 pca_change_raw = cellfun(@(pcd) Fs * vecnorm(diff(pcd, 1, 2), opts.norm_type), data_raw, 'uni', false);
 pca_change_raw = vertcat(pca_change_raw{:});
 
@@ -83,18 +105,19 @@ end
 if opts.save
     data_s.(opts.name) = pca_change;
     data_s.([opts.name, '_time']) = pca_change_time;
-    data_s.change_opts = opts;
-    save(result_file, '-struct', 'data_s');
+    data_s.([opts.name, '_opts']) = opts;
+    data_s.([opts.name, '_name']) = names;
+    save(result_file, '-struct', 'data_s', '-v7.3');
 end
 
 % make plots, if requested
 if opts.plot
     
     figure;
-    for kC = 1:n_chans       
+    for kC = 1:n_chans
         subplot(n_chans, 1, kC);
         
-        if sm_span_samp > 1
+        if opts.plot_raw
             plot(pca_change_time, pca_change_raw_interp(kC, :), 'k');
             hold on;
         end
@@ -103,9 +126,9 @@ if opts.plot
         axis tight;
         xlabel('Time (s)');
         ylabel('Euclidean change per second');
-        title(sprintf('%s PCA-space change speed', data_s.name{kC}));
+        title(sprintf('%s PCA-space change speed', names{kC}));
         
-        if opts.smooth_span > 1
+        if opts.plot_raw
             legend('Raw', sprintf('Smoothed (span = %d s)', opts.smooth_span));
         end        
     end

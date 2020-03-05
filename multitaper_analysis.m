@@ -151,7 +151,7 @@ for kS = 1:n_segs
 end
 
 if opts.save
-    save(fullfile(opts.savedir, opts.filename), '-struct', 'res');
+    save(fullfile(opts.savedir, opts.filename), '-struct', 'res', '-v7.3');
 end
 
 end

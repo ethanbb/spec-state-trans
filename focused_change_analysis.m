@@ -7,12 +7,12 @@ mfile = matfile('mt_res.mat');
 regions = mfile.name;
 
 if isprop(mfile, 'pca_change')
-    smoothed_change = mfile.pca_change;
+    change_data = mfile.pca_change;
 else
-    smoothed_change = pca_change('mt_res.mat');
+    change_data = pca_change('mt_res.mat');
 end
 
-smoothed_change = num2cell(smoothed_change, 2);
+change_data = num2cell(change_data, 2);
 
 %% find some points of high speed spectral change
 
@@ -30,7 +30,7 @@ prominence = cell(1, 2);
 n_peaks = zeros(1, 2);
 
 for kR = 1:2    
-    change_bpeak = islocalmax(smoothed_change{kR}, ...
+    change_bpeak = islocalmax(change_data{kR}, ...
         'MinProminence', 0.9, ...
         'MinSeparation', lookdist * interp_factor);  % in seconds 
 
@@ -38,7 +38,7 @@ for kR = 1:2
 
     n_peaks(kR) = length(change_peaks.real{kR});
     
-    change_peaks.sham{kR} = randperm(length(smoothed_change{kR}), n_peaks(kR));
+    change_peaks.sham{kR} = randperm(length(change_data{kR}), n_peaks(kR));
 end
 
 %% do spike-triggered average of change in other region at these points
@@ -60,10 +60,10 @@ for kT = 1:2
 
         win_inds = change_peaks.(type){kI}(:) + win_rel; % creates npeaks x nwin matrix
         win_inds = max(win_inds, 1);
-        win_inds = min(win_inds, length(smoothed_change{kI}));
+        win_inds = min(win_inds, length(change_data{kI}));
 
         for kJ = 1:2
-            wins.(type){kI, kJ} = smoothed_change{kJ}(win_inds);
+            wins.(type){kI, kJ} = change_data{kJ}(win_inds);
             sta.(type){kI, kJ} = mean(wins.(type){kI, kJ});
         end
 
