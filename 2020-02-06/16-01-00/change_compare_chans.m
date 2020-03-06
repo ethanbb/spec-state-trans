@@ -105,23 +105,39 @@ end
 %% Compute change speed for each channel using pca_change
 
 change_speed = cell(2, 1);
+change_fhs = gobjects(2, 1); % figure handles
 
 for kR = 1:2
     change_fname = sprintf('pca_change_%s', regions{kR});
+    change_figname = fullfile(results_dir, date, time, [change_fname, '.fig']);
     
-    if ~redo_change && isprop(res_mfile, change_fname)
+    if ~redo_change && isprop(res_mfile, change_fname) && exist(change_figname, 'file')
         change_speed{kR} = res_mfile.(change_fname);
         change_time = res_mfile.([change_fname, '_time']);
+        change_fhs(kR) = openfig(change_figname);
         continue;
     end
     
     change_opts = struct;
     change_opts.pca_name = sprintf('pxx_pca_1rec_%s', regions{kR});
     change_opts.comps = comps2use{kR};
+    change_opts.smooth_method = 'gaussian';
     change_opts.name = change_fname;
     change_opts.savefigs = false;
     
     [change_speed{kR}, change_time] = pca_change(res_file, change_opts);
+    change_fhs(kR) = gcf;
+    savefig(change_fhs(kR), change_figname);
 end
 
-%%
+%% Find (putative?) change peaks
+
+ispeak = cell(2, 1);
+for kR = 1:2
+    data_range = max(change_speed{kR}) - min(change_speed{kR});
+    ispeak{kR} = islocalmax(change_speed{kR}, 'MinProminence', 0.6 * data_range);
+    
+    figure(change_fhs(kR));
+    hold on
+    plot(change_time(ispeak{kR}), change_speed{kR}(ispeak{kR}), 'mo', 'MarkerSize', 15);
+end

@@ -30,11 +30,11 @@ prominence = cell(1, 2);
 n_peaks = zeros(1, 2);
 
 for kR = 1:2    
-    change_bpeak = islocalmax(change_data{kR}, ...
+    [bp{kR}, prominence{kR}] = islocalmax(change_data{kR}, ...
         'MinProminence', 0.9, ...
         'MinSeparation', lookdist * interp_factor);  % in seconds 
 
-    change_peaks.real{kR} = find(change_bpeak);
+    change_peaks.real{kR} = find(bp{kR});
 
     n_peaks(kR) = length(change_peaks.real{kR});
     
