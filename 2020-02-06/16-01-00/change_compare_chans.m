@@ -130,6 +130,27 @@ for kR = 1:2
     savefig(change_fhs(kR), change_figname);
 end
 
+%% Sanity check - plot over spectrogram
+
+if ~exist('h_mt', 'var') || ~isvalid(h_mt)
+    h_mt = openfig(fullfile(results_dir, date, time, 'multitaper.fig'));
+end
+
+for kR = 1:2
+    figure(h_mt);
+    hax = subplot(2, 2, 2*kR);
+
+    % clear except for surface plot
+    ax_plots = allchild(hax);
+    delete(ax_plots(1:end-1));
+    hold on;
+
+    yyaxis right;
+    plot(change_time, change_speed{kR}, 'k-');
+    ylim([0, 2 * max(change_speed{kR})]);
+    ylabel('Euclidean change per second (after PCA)');
+end
+
 %% Find (putative?) change peaks
 
 ispeak = cell(2, 1);

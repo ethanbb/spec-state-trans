@@ -81,10 +81,10 @@ data_sm = cellfun(@(pcd) smoothdata(pcd, 2, opts.smooth_method, sm_span_samp, 'i
     data_raw, 'uni', false);
 
 % compute norm of change in pca data == change speed
-pca_change_raw = cellfun(@(pcd) Fs * vecnorm(diff(pcd, 1, 2), opts.norm_type), data_raw, 'uni', false);
+pca_change_raw = cellfun(@(pcd) Fs * vecnorm(diff(pcd, 1, 2), opts.norm_type, 1), data_raw, 'uni', false);
 pca_change_raw = vertcat(pca_change_raw{:});
 
-pca_change = cellfun(@(pcd) Fs * vecnorm(diff(pcd, 1, 2), opts.norm_type), data_sm, 'uni', false);
+pca_change = cellfun(@(pcd) Fs * vecnorm(diff(pcd, 1, 2), opts.norm_type, 1), data_sm, 'uni', false);
 pca_change = vertcat(pca_change{:});
 
 pca_time = data_s.time_grid;
