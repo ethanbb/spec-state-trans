@@ -11,19 +11,9 @@ function res = multitaper_analysis(data_s, options)
 % artifact.
 
 %---------- organize data ----------%
+
 Fs = data_s.finalSampR;
-
-% depending on whether we have raw or mean-subtracted/artifact-removed
-% data, field containing data will be differed.
-
-lfp_field = 'meanSubFullTrace';
-if ~isfield(data_s, lfp_field)
-    warning('Input appears to be raw data - may contain artifacts, noise, etc.');
-    lfp_field = 'LFPData';
-    assert(isfield(data_s, lfp_field), 'LFP data not found in loaded dataset.');
-end
-
-lfp_organized = data_s.(lfp_field)([data_s.info.Probe2Indicies, data_s.info.Probe1Indicies], :);
+lfp_organized = organize_lfp(data_s);
 
 %---------- parse arguments --------%
 opts = struct(...
