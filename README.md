@@ -6,7 +6,7 @@
 
 ## Code organization
 
-* Depends on utilities in ethanbb/proektlab-matlab-tools. The tools repository should be cloned next to this one (i.e. they should be in sibling directories).
+* Depends on utilities in [ethanbb/proektlab-matlab-tools](https://github.com/ethanbb/proektlab-matlab-tools). The tools repository should be cloned next to this one (i.e. they should be in sibling directories).
   * In `proektlab-matlab-tools/prepSR.m`, change `box_dir` to be a local path to the contents of the "Blackwood" data folder on Box.
 
 * The `multitaper.m` script in each <date>/<time> dataset directory performs the initial time-frequency analysis on the corresponding pre-processed data on Box.
