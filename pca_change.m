@@ -84,7 +84,7 @@ data_sm = cellfun(@(pcd) smoothdata(pcd, 2, opts.smooth_method, sm_span_samp, 'i
 
 % implement diff with step as in https://www.desmos.com/calculator/hhnuua3vau
 diff_kernel_samps = round(sm_span_samp * opts.diff_factor);
-diff_kernel = [-1, zeros(1, diff_kernel_samps - 1), 1];
+diff_kernel = [1, zeros(1, diff_kernel_samps - 1), -1];
 mydiff = @(pcd) convn(pcd, diff_kernel, 'same');
 
 % compute norm of change in pca data == change speed
@@ -95,7 +95,7 @@ pca_change = cellfun(@(pcd) Fs * vecnorm(mydiff(pcd), opts.norm_type, 1), data_s
 pca_change = vertcat(pca_change{:});
 
 pca_time = data_s.time_grid;
-pca_change_time = mean([pca_time(1:end-1); pca_time(2:end)]);
+pca_change_time = pca_time;
 
 % interpolate if needed
 if opts.interp_factor > 1
