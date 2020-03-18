@@ -16,6 +16,9 @@ time = '16-01-00';
 res_file = fullfile(results_dir, date, time, 'mt_res.mat');
 res_mfile = matfile(res_file, 'Writable', true);
 
+mt_opts = res_mfile.options; % necessary due to MatFile quirk
+Fw = 1 / mt_opts.winstep; % "window rate"
+
 chans = res_mfile.name;
 chan_vnames = cellfun(@matlab.lang.makeValidName, chans, 'uni', false);
 n_chans = numel(chans);
@@ -133,9 +136,19 @@ for kC = 1:n_chans
     change_opts.name = change_fname;
     change_opts.savefigs = false;
     
+    % temporary:
+    change_opts.save = false;
+    
+    % more smoothing:
+    change_opts.smooth_span = 20;
+
+%     % exponential smoothing:
+%     change_opts.smooth_method = 'exp';
+%     change_opts.diff_step = 1/Fw;
+    
     [change_speed{kC}, change_time] = pca_change(res_file, change_opts);
-    change_fhs(kC) = gcf;
-    savefig(change_fhs(kC), change_figname);
+    %change_fhs(kC) = gcf;
+    %savefig(change_fhs(kC), change_figname);
 end
 
 %% Sanity check - plot over spectrogram
