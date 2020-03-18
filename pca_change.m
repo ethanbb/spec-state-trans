@@ -15,7 +15,9 @@ opts = struct(...
     'rel_chans',     'all',          ... which channels to use, of those available (array or 'all' (default))
     'comps',         'all',          ... which components to use (array or 'all')
     'smooth_span',   10,             ... span in seconds to smooth the change (before interpolating)
-    'smooth_method', 'movmean',      ... smoothing method (3rd argument of smoothdata)
+    'smooth_method', 'gaussian',     ... smoothing method (3rd argument of smoothdata)
+    'diff_factor',   0.75,           ... compute change stepping by smooth span times this factor
+                                     ... see https://www.desmos.com/calculator/hhnuua3vau - factor 'a'
     'norm_type',     2,              ... second input to vecnorm (default is Euclidian distance)
     'interp_factor', 1,              ... set to >1 to interpolate change by an integer factor
     'interp_method', 'makima',       ... interpolation method (4th argument of interp1)
@@ -80,15 +82,20 @@ data_raw = cellfun(@(pcd) pcd(opts.comps, :), data_raw, 'uni', false);
 data_sm = cellfun(@(pcd) smoothdata(pcd, 2, opts.smooth_method, sm_span_samp, 'includenan'), ...
     data_raw, 'uni', false);
 
+% implement diff with step as in https://www.desmos.com/calculator/hhnuua3vau
+diff_kernel_samps = round(sm_span_samp * opts.diff_factor);
+diff_kernel = [1, zeros(1, diff_kernel_samps - 1), -1];
+mydiff = @(pcd) convn(pcd, diff_kernel, 'same');
+
 % compute norm of change in pca data == change speed
-pca_change_raw = cellfun(@(pcd) Fs * vecnorm(diff(pcd, 1, 2), opts.norm_type, 1), data_raw, 'uni', false);
+pca_change_raw = cellfun(@(pcd) Fs * vecnorm(mydiff(pcd), opts.norm_type, 1), data_raw, 'uni', false);
 pca_change_raw = vertcat(pca_change_raw{:});
 
-pca_change = cellfun(@(pcd) Fs * vecnorm(diff(pcd, 1, 2), opts.norm_type, 1), data_sm, 'uni', false);
+pca_change = cellfun(@(pcd) Fs * vecnorm(mydiff(pcd), opts.norm_type, 1), data_sm, 'uni', false);
 pca_change = vertcat(pca_change{:});
 
 pca_time = data_s.time_grid;
-pca_change_time = mean([pca_time(1:end-1); pca_time(2:end)]);
+pca_change_time = pca_time;
 
 % interpolate if needed
 if opts.interp_factor > 1

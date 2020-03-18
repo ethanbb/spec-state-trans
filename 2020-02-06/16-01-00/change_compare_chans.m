@@ -30,7 +30,7 @@ for kC = 1:n_chans
     res_name = sprintf('pxx_pca_1rec_%s', chan_vnames{kC});
     
     if ~redo_pca && isprop(res_mfile, res_name) % just load if possible
-        pc_data(kC) = res_mfile.(res_name);
+        pc_data(kC) = res_mfile.(res_name)(kC, 1);
     else
         pca_opts = struct;
         pca_opts.name = res_name;
@@ -38,7 +38,8 @@ for kC = 1:n_chans
         pca_opts.thresh_type = 'comps';
         pca_opts.thresh = total_comps;
 
-        [pc_data(kC), fh] = mt_pca(res_file, pca_opts);
+        [mt_pca_output, fh] = mt_pca(res_file, pca_opts);
+        pc_data(kC) = mt_pca_output(kC);
 
         savefig(fh, sprintf('pca_%s.fig', chan_vnames{kC}));
     end
