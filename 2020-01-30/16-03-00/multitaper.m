@@ -2,14 +2,14 @@
 
 prepSR;
 
-date = '2020-01-30';
+recdate = '2020-01-30';
 time = '16-03-00';
 
-savedir = fullfile(results_dir, date, time);
+savedir = fullfile(results_dir, recdate, time);
 
 %% load and do analysis
 
-data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', date, time)));
+data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', recdate, time)));
 
 options = struct;
 options.savedir = savedir;

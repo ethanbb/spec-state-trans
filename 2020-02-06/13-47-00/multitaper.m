@@ -2,12 +2,12 @@
 
 prepSR;
 
-date = '2020-02-06';
+recdate = '2020-02-06';
 time = '13-47-00';
 
-savedir = fullfile(results_dir, date, time);
+savedir = fullfile(results_dir, recdate, time);
 
-data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', date, time)));
+data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', recdate, time)));
 
 %% do low-resolution analysis first
 

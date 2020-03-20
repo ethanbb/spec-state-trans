@@ -11,9 +11,9 @@ redo_change = redo_all || false; % change to true to recalculate change speeds
 
 prepSR;
 
-date = '2020-02-06';
+recdate = '2020-02-06';
 time = '16-01-00';
-res_file = fullfile(results_dir, date, time, 'mt_res.mat');
+res_file = fullfile(results_dir, recdate, time, 'mt_res.mat');
 res_mfile = matfile(res_file, 'Writable', true);
 
 mt_opts = res_mfile.options; % necessary due to MatFile quirk
@@ -120,7 +120,7 @@ change_fhs = gobjects(n_chans, 1); % figure handles
 
 for kC = 1:n_chans
     change_fname = sprintf('pca_change_%s', chan_vnames{kC});
-    change_figname = fullfile(results_dir, date, time, [change_fname, '.fig']);
+    change_figname = fullfile(results_dir, recdate, time, [change_fname, '.fig']);
     
     if ~redo_change && isprop(res_mfile, change_fname) && exist(change_figname, 'file')
         change_speed{kC} = res_mfile.(change_fname);
@@ -142,7 +142,7 @@ for kC = 1:n_chans
     % more smoothing:
     change_opts.smooth_span = 20;
 
-%     % exponential smoothing:
+    % exponential smoothing:
 %     change_opts.smooth_method = 'exp';
 %     change_opts.diff_step = 1/Fw;
     
@@ -154,7 +154,7 @@ end
 %% Sanity check - plot over spectrogram
 
 if ~exist('h_mt', 'var') || ~isvalid(h_mt)
-    h_mt = openfig(fullfile(results_dir, date, time, 'multitaper.fig'));
+    h_mt = openfig(fullfile(results_dir, recdate, time, 'multitaper.fig'));
 end
 
 for kC = 1:n_chans
