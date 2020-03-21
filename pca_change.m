@@ -22,6 +22,7 @@ opts = struct(...
                                      ... see https://www.desmos.com/calculator/hhnuua3vau - factor 'a'
     'diff_step',     [],             ... overrides diff_factor to always use a certain diff step (in seconds)
     'norm_type',     2,              ... second input to vecnorm (default is Euclidian distance)
+                                     ... or 'none' to output velocity (components in dimension 3)
     'interp_factor', 1,              ... set to >1 to interpolate change by an integer factor
     'interp_method', 'makima',       ... interpolation method (4th argument of interp1)
     'xcorr_pairs',   {{}},           ... pairs (2-element vectors) of indices of rel_chans to plot xcorr of
@@ -107,13 +108,19 @@ diff_kernel_samps = diff_kernel_samps + 1; % actual length of kernel
 diff_kernel = [1, zeros(1, diff_kernel_samps - 2), -1];
 mydiff = @(pcd) convn(pcd, diff_kernel, 'valid');
 
+% function to diff and either take a norm or leave the velocity
+scale_factor = Fw / (diff_kernel_samps - 1);
+if strcmpi(opts.norm_type, 'none')
+    changefn = @(pcd) scale_factor * permute(mydiff(pcd), [3, 2, 1]);
+else
+    changefn = @(pcd) scale_factor * vecnorm(mydiff(pcd), opts.norm_type, 1);
+end
+
 % compute norm of change in pca data == change speed
-pca_change_raw = cellfun(@(pcd) Fw/(diff_kernel_samps-1) * vecnorm(mydiff(pcd), opts.norm_type, 1), ...
-    data_raw, 'uni', false);
+pca_change_raw = cellfun(changefn, data_raw, 'uni', false);
 pca_change_raw = vertcat(pca_change_raw{:});
 
-pca_change = cellfun(@(pcd) Fw/(diff_kernel_samps-1) * vecnorm(mydiff(pcd), opts.norm_type, 1), ...
-    data_sm, 'uni', false);
+pca_change = cellfun(changefn, data_sm, 'uni', false);
 pca_change = vertcat(pca_change{:});
 
 pca_time = data_s.time_grid(:).';
@@ -121,11 +128,15 @@ pca_change_time = convn(pca_time, ones(1, diff_kernel_samps) / diff_kernel_samps
 
 % interpolate if needed
 if opts.interp_factor > 1
-    time_interp = pca_change_time(1):1/(Fw*opts.interp_factor):pca_change_time(end);
+    pca_change_time = pca_change_time(1):1/(Fw*opts.interp_factor):pca_change_time(end);
     
-    pca_change_raw_interp = interp1(pca_change_time, pca_change_raw.', time_interp, opts.interp_method).';
-    pca_change = interp1(pca_change_time, pca_change.', time_interp, opts.interp_method).';
-    pca_change_time = time_interp;
+    pca_change_raw_interp = interp1(pca_change_time, permute(pca_change_raw, [2, 1, 3]), ...
+        pca_change_time, opts.interp_method);
+    pca_change_raw_interp = permute(pca_change_raw_interp, [2, 1, 3]);
+    
+    pca_change = interp1(pca_change_time, permute(pca_change, [2, 1, 3]), ...
+        pca_change_time, opts.interp_method);
+    pca_change = permute(pca_change, [2, 1, 3]);
 else
     pca_change_raw_interp = pca_change_raw;
 end
@@ -147,14 +158,18 @@ if opts.plot
         subplot(n_chans, 1, kC);
         
         if opts.plot_raw
-            plot(pca_change_time, pca_change_raw_interp(kC, :), 'k');
+            plot(pca_change_time, pca_change_raw_interp(kC, :, 1), 'k');
             hold on;
         end
         
-        plot(pca_change_time, pca_change(kC, :), 'b');
+        plot(pca_change_time, pca_change(kC, :, 1), 'b');
+        if size(pca_change, 3) > 1
+            warning('Plotting only first component of change velocity');
+        end
+        
         axis tight;
         xlabel('Time (s)');
-        ylabel('Euclidean change per second');
+        ylabel('Change per second');
         title(sprintf('%s PCA-space change speed', names{kC}));
         
         if opts.plot_raw

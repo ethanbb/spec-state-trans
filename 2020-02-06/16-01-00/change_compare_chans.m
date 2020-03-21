@@ -112,10 +112,12 @@ else
     res_mfile.(comp_fname) = comps2use;
 end
 
+%% Actually just use the component with highest variance:
+comps2use = repmat({1}, n_chans, 1);
 
-%% Compute change speed for each channel using pca_change
+%% Compute change velocity for each channel using pca_change
 
-change_speed = cell(n_chans, 1);
+change_vel = cell(n_chans, 1);
 change_fhs = gobjects(n_chans, 1); % figure handles
 
 for kC = 1:n_chans
@@ -123,7 +125,7 @@ for kC = 1:n_chans
     change_figname = fullfile(results_dir, recdate, time, [change_fname, '.fig']);
     
     if ~redo_change && isprop(res_mfile, change_fname) && exist(change_figname, 'file')
-        change_speed{kC} = res_mfile.(change_fname);
+        change_vel{kC} = res_mfile.(change_fname);
         change_time = res_mfile.([change_fname, '_time']);
         change_fhs(kC) = openfig(change_figname);
         continue;
@@ -136,19 +138,18 @@ for kC = 1:n_chans
     change_opts.name = change_fname;
     change_opts.savefigs = false;
     
-    % temporary:
-    change_opts.save = false;
-    
     % more smoothing:
-    change_opts.smooth_span = 20;
+    change_opts.smooth_span = 100;
 
     % exponential smoothing:
-%     change_opts.smooth_method = 'exp';
-%     change_opts.diff_step = 1/Fw;
+    change_opts.smooth_method = 'exp';
+    change_opts.diff_step = 1/Fw; % detect sharp change right at sample of interest
+
+    change_opts.norm_type = 'none'; % get velocity instead of speed (meaningful peaks & troughs)
     
-    [change_speed{kC}, change_time] = pca_change(res_file, change_opts);
-    %change_fhs(kC) = gcf;
-    %savefig(change_fhs(kC), change_figname);
+    [change_vel{kC}, change_time] = pca_change(res_file, change_opts);
+    change_fhs(kC) = gcf;
+    savefig(change_fhs(kC), change_figname);
 end
 
 %% Sanity check - plot over spectrogram
@@ -167,19 +168,19 @@ for kC = 1:n_chans
     hold on;
 
     yyaxis right;
-    plot(change_time, change_speed{kC}, 'k-');
-    ylim([0, 2 * max(change_speed{kC})]);
-    ylabel('Euclidean change per second (after PCA)');
+    plot(change_time, change_vel{kC}, 'k-');
+    ylim([min(0, min(change_vel{kC})), 2 * max(change_vel{kC})]);
+    ylabel('Change per second');
 end
 
-%% Find (putative?) change peaks
+%% Find change extrema
 
 ispeak = cell(n_chans, 1);
 for kC = 1:n_chans
-    data_range = max(change_speed{kC}) - min(change_speed{kC});
-    ispeak{kC} = islocalmax(change_speed{kC}, 'MinProminence', 0.6 * data_range);
+    data_range = max(change_vel{kC}) - min(change_vel{kC});
+    ispeak{kC} = islocalmax(change_vel{kC}, 'MinProminence', 0.6 * data_range);
     
     figure(change_fhs(kC));
     hold on
-    plot(change_time(ispeak{kC}), change_speed{kC}(ispeak{kC}), 'mo', 'MarkerSize', 15);
+    plot(change_time(ispeak{kC}), change_vel{kC}(ispeak{kC}), 'mo', 'MarkerSize', 15);
 end
