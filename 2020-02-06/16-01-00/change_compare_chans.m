@@ -175,6 +175,22 @@ for kC = 1:n_chans
     ylabel('Change per second');
 end
 
+%% Invert change velocity of one or more channels if necessary at this point.
+% (depending on sign of first PCA component)
+% peaks should correspond to transitions to state with higher relative power in higher freqs
+% and vice versa.
+
+if redo_change
+    % Manually edit below if necessary:
+    chans2invert = [];
+    for kC = chans2invert
+        change_vel{kC} = -change_vel{kC};
+
+        change_fname = sprintf('pca_change_%s', chan_vnames{kC});
+        res_mfile.(change_fname) = -res_mfile.(change_fname);
+    end
+end
+
 %% Find change extrema
 
 peak_fname = 'vel_peaks';

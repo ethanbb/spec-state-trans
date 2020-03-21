@@ -1,4 +1,5 @@
 function plot_csd(recdate)
+% Peaks of the resulting plots should be current *sinks*.
 
 prepSR;
 
@@ -41,6 +42,8 @@ kernel = (-(sigma^2 - support.^2)/(sigma^5*sqrt(2*pi))) .* ...
 time = round(0.9*Fs:1.5*Fs); % 100 ms pre to 500 ms post
 time_axis = time * 1000/Fs - 1000*sec_pre;
 
+spacing = 20/1000; % in mm
+
 for kF = 1:n_files
     fhs = gobjects(2, 1);
     
@@ -51,13 +54,22 @@ for kF = 1:n_files
         chans_removed = length(reg_inds{kR}) - chans_out;
 
         fhs(kR) = figure;
+        ax = axes;
 
         chan_axis = (kR-1)*32 + chans_removed/2 + (1:chans_out);
+        depth_axis = (chan_axis - (kR-1)*32) * spacing;
 
-        pcolor(time_axis, chan_axis, flipud(gausCSD(:, time)));
+        pcolor(time_axis, depth_axis, flipud(gausCSD(:, time)));
         shading interp;
-        set(gca, 'YDir', 'reverse');
         axis tight;
+
+        ax.YDir = 'reverse';
+        ylabel('Depth (mm)');
+
+        yyaxis right;
+        ax.YDir = 'reverse';
+        ylim([chan_axis(1), chan_axis(end)]);
+        ylabel('Channel #');
 
         xlabel('Time since stimulus presentation (ms)');
         ylabel('Channel #');
