@@ -8,6 +8,7 @@ redo_all = false; % change to true to recompute from scratch
 redo_pca = redo_all || false; % change to true to redo PCA
 redo_comps = redo_all || false; % change to true to re-visualize PCA and select components
 redo_change = redo_all || false; % change to true to recalculate change speeds
+redo_extrema = redo_all || false; % change to true to redo extrema finding
 
 prepSR;
 
@@ -148,6 +149,7 @@ for kC = 1:n_chans
     change_opts.norm_type = 'none'; % get velocity instead of speed (meaningful peaks & troughs)
     
     [change_vel{kC}, change_time] = pca_change(res_file, change_opts);
+    title(sprintf('%s PC1 velocity', chans{kC}));
     change_fhs(kC) = gcf;
     savefig(change_fhs(kC), change_figname);
 end
@@ -175,12 +177,46 @@ end
 
 %% Find change extrema
 
-ispeak = cell(n_chans, 1);
-for kC = 1:n_chans
-    data_range = max(change_vel{kC}) - min(change_vel{kC});
-    ispeak{kC} = islocalmax(change_vel{kC}, 'MinProminence', 0.6 * data_range);
+peak_fname = 'vel_peaks';
+trough_fname = 'vel_troughs';
+
+% 'peaks' and 'troughs' saved in file are the times of change extrema in seconds.
+% 'ispeak' and 'istrough' are logical arrays marking these events, on the time scale of change_vel.
+
+if ~redo_extrema && isprop(res_mfile, peak_fname) && isprop(res_mfile, trough_fname)
+    peaks = res_mfile.(peak_fname);
+    troughs = res_mfile.(trough_fname);
     
+    ispeak = cellfun(@(p) change_time == p, peaks, 'uni', false);
+    istrough = cellfun(@(t) change_time == t, troughs, 'uni', false);
+else
+    
+    ispeak = cell(n_chans, 1);
+    istrough = cell(n_chans, 1);
+    
+    for kC = 1:n_chans
+        data_range = max(change_vel{kC}) - min(change_vel{kC});
+        ispeak{kC} = islocalmax(change_vel{kC}, 'MinProminence', 0.4 * data_range);
+        istrough{kC} = islocalmin(change_vel{kC}, 'MinProminence', 0.4 * data_range);
+        
+    end
+    
+    peaks = cellfun(@(bp) change_time(bp), ispeak, 'uni', false);
+    troughs = cellfun(@(bt) change_time(bt), istrough, 'uni', false);
+    
+    res_mfile.(peak_fname) = peaks;
+    res_mfile.(trough_fname) = troughs;
+end
+
+% plot extrema for each channel
+for kC = 1:n_chans
     figure(change_fhs(kC));
-    hold on
-    plot(change_time(ispeak{kC}), change_vel{kC}(ispeak{kC}), 'mo', 'MarkerSize', 15);
+    
+    % remove previous extrema if necessary
+    ax_plots = allchild(gca);
+    delete(ax_plots(1:end-1));    
+    
+    hold on;
+    plot(peaks{kC}, change_vel{kC}(ispeak{kC}), 'ro', 'MarkerSize', 10);
+    plot(troughs{kC}, change_vel{kC}(istrough{kC}), 'mo', 'MarkerSize', 10);   
 end
