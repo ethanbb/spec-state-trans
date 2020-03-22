@@ -59,7 +59,7 @@ for kF = 1:n_files
         chan_axis = (kR-1)*32 + chans_removed/2 + (1:chans_out);
         depth_axis = (chan_axis - (kR-1)*32) * spacing;
 
-        pcolor(time_axis, depth_axis, flipud(gausCSD(:, time)));
+        pcolor(time_axis, depth_axis, gausCSD(:, time));
         shading interp;
         axis tight;
 
