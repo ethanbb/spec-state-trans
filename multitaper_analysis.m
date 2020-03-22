@@ -141,6 +141,17 @@ for kS = 1:n_segs
 end
 
 if opts.save
+    if ~exist(opts.savedir, 'dir')
+        % attempt to create it
+        mkdir(opts.savedir);
+
+        if ~exist(opts.savedir, 'dir')
+            warning('Directory %s could not be created; saving in current dir instead', ...
+                opts.savedir);
+            opts.savedir = pwd;
+        end
+    end
+
     save(fullfile(opts.savedir, opts.filename), '-struct', 'res', '-v7.3');
 end
 
