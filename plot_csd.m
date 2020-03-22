@@ -44,6 +44,16 @@ time_axis = time * 1000/Fs - 1000*sec_pre;
 
 spacing = 20/1000; % in mm
 
+% make sure there's somewhere to save them
+savedir = fullfile(results_dir, recdate);
+if ~exist(savedir, 'dir')
+    % try to create it
+
+    if ~mkdir(savedir)
+        error('Could not create folder %s to save results', savedir);
+    end
+end
+
 for kF = 1:n_files
     fhs = gobjects(2, 1);
     
@@ -79,8 +89,8 @@ for kF = 1:n_files
         c = colorbar;
         c.Label.String = 'CSD in mV/mm^2';
     end
-    
-    savefig(fhs, fullfile(results_dir, recdate, sprintf('csd_%s.fig', rectimes{kF})));
+
+    savefig(fhs, fullfile(savedir, sprintf('csd_%s.fig', rectimes{kF})));
 end
 
 end

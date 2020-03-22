@@ -143,9 +143,8 @@ end
 if opts.save
     if ~exist(opts.savedir, 'dir')
         % attempt to create it
-        mkdir(opts.savedir);
 
-        if ~exist(opts.savedir, 'dir')
+        if ~mkdir(opts.savedir)
             warning('Directory %s could not be created; saving in current dir instead', ...
                 opts.savedir);
             opts.savedir = pwd;
