@@ -8,13 +8,15 @@ function lfp_organized = organize_lfp(data_s)
 % depending on whether we have raw or mean-subtracted/artifact-removed
 % data, field containing data will be differed.
 
-lfp_field = 'meanSubFullTrace';
-if ~isfield(data_s, lfp_field)
+lfp_fields = {'meanSubFullTrace', 'meanSubData'}; % second one is for "snippits"
+if any(isfield(data_s, lfp_fields))
+    lfp_field = lfp_fields{isfield(data_s, lfp_fields)};
+else
     warning('Input appears to be raw data - may contain artifacts, noise, etc.');
     lfp_field = 'LFPData';
     assert(isfield(data_s, lfp_field), 'LFP data not found in loaded dataset.');
 end
 
-lfp_organized = data_s.(lfp_field)([data_s.info.Probe2Indicies, data_s.info.Probe1Indicies], :);
+lfp_organized = data_s.(lfp_field)([data_s.info.Probe2Indicies, data_s.info.Probe1Indicies], :, :);
 
 end

@@ -2,12 +2,12 @@
 
 prepSR;
 
-date = '2020-02-06';
+recdate = '2020-02-06';
 time = '16-01-00';
 
-savedir = fullfile(results_dir, date, time);
+savedir = fullfile(results_dir, recdate, time);
 
-data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', date, time)));
+data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', recdate, time)));
 
 %% do low-resolution analysis first
 
@@ -19,9 +19,9 @@ options.artifacts = [
     832, 834
     ];
 
-% chans based on CSD:
-options.chans = [9, 24, 41, 56];
-options.chan_names = {'apical V1', 'basal V1', 'apical MC', 'basal MC'};
+% chans based on 15-43-00 CSD:
+options.chans = [13, 42];
+options.chan_names = {'V1', 'MC'};
 
 options.save = false;
 
@@ -48,11 +48,10 @@ options.artifacts = [
 % avoid channels 15-17 due to artifact @ 694 seconds
 % channel 14 is also bad - has long-persisting noise after artifact @ 832
 % avoid channels 48-49 due to artifact @ 4533
-% options.chans = [18, 47];
 
-% chans based on CSD:
-options.chans = [9, 24, 41, 56];
-options.chan_names = {'apical V1', 'basal V1', 'apical MC', 'basal MC'};
+% chans based on 15-43-00 CSD:
+options.chans = [13, 42];
+options.chan_names = {'V1', 'MC'};
 
 % smaller window
 options.window = 6;

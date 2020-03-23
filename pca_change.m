@@ -15,10 +15,14 @@ opts = struct(...
     'rel_chans',     'all',          ... which channels to use, of those available (array or 'all' (default))
     'comps',         'all',          ... which components to use (array or 'all')
     'smooth_span',   10,             ... span in seconds to smooth the change (before interpolating)
-    'smooth_method', 'gaussian',     ... smoothing method (3rd argument of smoothdata)
-    'diff_factor',   0.75,           ... compute change stepping by smooth span times this factor
+    'smooth_method', 'gaussian',     ... smoothing method (3rd argument of smoothdata).
+                                     ... can also be 'exp' for an exponential (Poisson) window.
+                                     ... see: https://www.desmos.com/calculator/hkwshtnbfn
+    'diff_factor',   0.75,           ... step by 'smooth_span' times this factor when calculating finite difference
                                      ... see https://www.desmos.com/calculator/hhnuua3vau - factor 'a'
+    'diff_step',     [],             ... overrides diff_factor to always use a certain diff step (in seconds)
     'norm_type',     2,              ... second input to vecnorm (default is Euclidian distance)
+                                     ... or 'none' to output velocity (components in dimension 3)
     'interp_factor', 1,              ... set to >1 to interpolate change by an integer factor
     'interp_method', 'makima',       ... interpolation method (4th argument of interp1)
     'xcorr_pairs',   {{}},           ... pairs (2-element vectors) of indices of rel_chans to plot xcorr of
@@ -67,8 +71,8 @@ if ~iscell(opts.xcorr_pairs)
     opts.xcorr_pairs = num2cell(opts.xcorr_pairs, 2);
 end
 
-Fs = 1 / data_s.options.winstep;  % window step = sample period of TFR data
-sm_span_samp = Fs * opts.smooth_span;
+Fw = 1 / data_s.options.winstep;  % window step = sample period of TFR data
+sm_span_samp = Fw * opts.smooth_span;
 opts.plot_raw = opts.plot_raw && sm_span_samp > 1; % if not smoothing, don't need to plot raw data
 
 %-----------------------------------
@@ -79,31 +83,60 @@ data_raw = valid_data(opts.rel_chans);
 data_raw = cellfun(@(pcd) pcd(opts.comps, :), data_raw, 'uni', false);
 
 % smooth before diffing
-data_sm = cellfun(@(pcd) smoothdata(pcd, 2, opts.smooth_method, sm_span_samp, 'includenan'), ...
-    data_raw, 'uni', false);
+if strcmpi(opts.smooth_method, 'exp')
+    % manually implement exponential smoothing
+    
+    kernel_samps = (1:sm_span_samp) - ceil(sm_span_samp/2);
+    tau = sm_span_samp / 6.25; % to make it match edge of Gaussian w/ 2.5 SDs on each tail
+    kernel = exp(-abs(kernel_samps)/tau);
+    kernel = kernel ./ sum(kernel);
 
-% implement diff with step as in https://www.desmos.com/calculator/hhnuua3vau
-diff_kernel_samps = round(sm_span_samp * opts.diff_factor);
-diff_kernel = [1, zeros(1, diff_kernel_samps - 1), -1];
-mydiff = @(pcd) convn(pcd, diff_kernel, 'same');
+    data_sm = cellfun(@(pcd) convn_correct(pcd, kernel), data_raw, 'uni', false);
+else
+    data_sm = cellfun(@(pcd) smoothdata(pcd, 2, opts.smooth_method, sm_span_samp, 'includenan'), ...
+        data_raw, 'uni', false);
+end
+
+if ~isempty(opts.diff_step)
+    diff_kernel_samps = opts.diff_step * Fw;
+else
+    % implement diff with step as in https://www.desmos.com/calculator/hhnuua3vau
+    diff_kernel_samps = round(sm_span_samp * opts.diff_factor);
+end
+diff_kernel_samps = diff_kernel_samps + 1; % actual length of kernel
+
+diff_kernel = [1, zeros(1, diff_kernel_samps - 2), -1];
+mydiff = @(pcd) convn(pcd, diff_kernel, 'valid');
+
+% function to diff and either take a norm or leave the velocity
+scale_factor = Fw / (diff_kernel_samps - 1);
+if strcmpi(opts.norm_type, 'none')
+    changefn = @(pcd) scale_factor * permute(mydiff(pcd), [3, 2, 1]);
+else
+    changefn = @(pcd) scale_factor * vecnorm(mydiff(pcd), opts.norm_type, 1);
+end
 
 % compute norm of change in pca data == change speed
-pca_change_raw = cellfun(@(pcd) Fs * vecnorm(mydiff(pcd), opts.norm_type, 1), data_raw, 'uni', false);
+pca_change_raw = cellfun(changefn, data_raw, 'uni', false);
 pca_change_raw = vertcat(pca_change_raw{:});
 
-pca_change = cellfun(@(pcd) Fs * vecnorm(mydiff(pcd), opts.norm_type, 1), data_sm, 'uni', false);
+pca_change = cellfun(changefn, data_sm, 'uni', false);
 pca_change = vertcat(pca_change{:});
 
-pca_time = data_s.time_grid;
-pca_change_time = pca_time;
+pca_time = data_s.time_grid(:).';
+pca_change_time = convn(pca_time, ones(1, diff_kernel_samps) / diff_kernel_samps, 'valid');
 
 % interpolate if needed
 if opts.interp_factor > 1
-    time_interp = pca_change_time(1):1/(Fs*opts.interp_factor):pca_change_time(end);
+    pca_change_time = pca_change_time(1):1/(Fw*opts.interp_factor):pca_change_time(end);
     
-    pca_change_raw_interp = interp1(pca_change_time, pca_change_raw.', time_interp, opts.interp_method).';
-    pca_change = interp1(pca_change_time, pca_change.', time_interp, opts.interp_method).';
-    pca_change_time = time_interp;
+    pca_change_raw_interp = interp1(pca_change_time, permute(pca_change_raw, [2, 1, 3]), ...
+        pca_change_time, opts.interp_method);
+    pca_change_raw_interp = permute(pca_change_raw_interp, [2, 1, 3]);
+    
+    pca_change = interp1(pca_change_time, permute(pca_change, [2, 1, 3]), ...
+        pca_change_time, opts.interp_method);
+    pca_change = permute(pca_change, [2, 1, 3]);
 else
     pca_change_raw_interp = pca_change_raw;
 end
@@ -125,14 +158,18 @@ if opts.plot
         subplot(n_chans, 1, kC);
         
         if opts.plot_raw
-            plot(pca_change_time, pca_change_raw_interp(kC, :), 'k');
+            plot(pca_change_time, pca_change_raw_interp(kC, :, 1), 'k');
             hold on;
         end
         
-        plot(pca_change_time, pca_change(kC, :), 'b');
+        plot(pca_change_time, pca_change(kC, :, 1), 'b');
+        if size(pca_change, 3) > 1
+            warning('Plotting only first component of change velocity');
+        end
+        
         axis tight;
         xlabel('Time (s)');
-        ylabel('Euclidean change per second');
+        ylabel('Change per second');
         title(sprintf('%s PCA-space change speed', names{kC}));
         
         if opts.plot_raw
@@ -148,7 +185,7 @@ if opts.plot
     if n_xcorrs > 0
         figure;
         
-        dt = 1/Fs; % use non-interpolated version
+        dt = 1/Fw; % use non-interpolated version
         numlags = 20 / min(dt, 1);
         
         for kX = 1:n_xcorrs

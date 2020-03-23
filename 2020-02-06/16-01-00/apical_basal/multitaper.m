@@ -3,7 +3,7 @@
 prepSR;
 
 recdate = '2020-02-06';
-time = '13-47-00';
+time = '16-01-00';
 
 savedir = fullfile(results_dir, recdate, time);
 
@@ -16,13 +16,12 @@ len_secs = size(data_s.meanSubFullTrace, 2) / data_s.finalSampR;
 options = struct;
 options.savedir = savedir;
 options.artifacts = [
-    1387, 1391
-    5050, len_secs % (to end of recording)
+    832, 834
     ];
 
-% chans based on 13-15-00 CSD:
-options.chans = [9, 39];
-options.chan_names = {'V1', 'MC'};
+% chans based on CSD:
+options.chans = [9, 24, 41, 56];
+options.chan_names = {'apical V1', 'basal V1', 'apical MC', 'basal MC'};
 
 options.save = false;
 
@@ -43,13 +42,17 @@ len_secs = size(data_s.meanSubFullTrace, 2) / data_s.finalSampR;
 options = struct;
 options.savedir = savedir;
 options.artifacts = [
-    1387, 1391
-    5050, len_secs % (to end of recording)
+    832, 834
     ];
 
-% chans based on 13-15-00 CSD:
-options.chans = [9, 39];
-options.chan_names = {'V1', 'MC'};
+% avoid channels 15-17 due to artifact @ 694 seconds
+% channel 14 is also bad - has long-persisting noise after artifact @ 832
+% avoid channels 48-49 due to artifact @ 4533
+% options.chans = [18, 47];
+
+% chans based on CSD:
+options.chans = [9, 24, 41, 56];
+options.chan_names = {'apical V1', 'basal V1', 'apical MC', 'basal MC'};
 
 % smaller window
 options.window = 6;

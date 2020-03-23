@@ -13,8 +13,8 @@ redo_match = redo_all || false; % change to true to redo extrema matching
 
 prepSR;
 
-recdate = '2020-02-06';
-time = '16-01-00';
+recdate = '2020-03-06';
+time = '14-56-00';
 res_file = fullfile(results_dir, recdate, time, 'mt_res.mat');
 res_mfile = matfile(res_file, 'Writable', true);
 
@@ -47,70 +47,6 @@ for kC = 1:n_chans
 
         savefig(fh, sprintf('pca_%s.fig', chan_vnames{kC}));
     end
-end
-
-%% Visualize to identify which components to keep (start with scatter 1-3, can do more if necessary)
-
-comp_fname = 'change_compare_comps';
-
-if ~redo_comps && isprop(res_mfile, comp_fname)
-    comps2use = res_mfile.(comp_fname);
-else
-    % these times of interest have been painstakingly manually identified
-    hstarts = [1521, 2197, 3722, 4530, 5180, 6081, 7619]; % in seconds
-    hends = [1614, 2634, 3814, 4702, 5259, 6240, 7712];   % ditto
-    
-    Fs_mt = 10; % since our window step is 0.1 seconds, sample freq = 10 Hz
-    htimes = arrayfun(@(s, e) Fs_mt*s+1:Fs_mt*e, hstarts, hends, 'uni', false);
-    htimes = cell2mat(htimes);
-    
-    
-    comps2use = false(n_chans, total_comps);
-    
-    figure;
-    
-    for kC = 1:n_chans
-        comps2show = 1:3;
-        
-        while ~isempty(comps2show)
-            
-            hold off;
-            dscatter(pc_data{kC}(comps2show, :));
-            set(gca, 'Interactions', [zoomInteraction, rotateInteraction, rulerPanInteraction]);
-            hold on;
-            xlabel(sprintf('PC%d', comps2show(1)));
-            ylabel(sprintf('PC%d', comps2show(2)));
-            
-            % show times of interest
-            hdata = arrayfun(@(c) pc_data{kC}(c, htimes), comps2show, 'uni', false);
-            if length(comps2show) == 3
-                zlabel(sprintf('PC%d', comps2show(3)));
-                scatter3(hdata{:}, 20, 'r', 'o');
-            else
-                scatter(hdata{:}, 20, 'r', 'o');
-            end
-            
-            title(sprintf('Principal components in region: %s', chans{kC}));
-            
-            % Ask user which components to use in analysis
-            comp_prompt = 'Enter array of most informative components: ';
-            comp_validator = @(comps) all(ismember(comps, 1:total_comps));
-            comp_errmsg = sprintf('Must be an array of component numbers from 1 to %d', total_comps);
-            comps2add = safeinput(comp_prompt, comp_validator, comp_errmsg);
-
-            comps2use(kC, comps2add) = true;
-            
-            % Ask user which components to show next
-            next_prompt = 'Enter 2 or 3 components to show next, or nothing to move on: ';
-            next_validator = @(comps) comp_validator(comps) && ismember(numel(comps), [0, 2, 3]);
-            next_errmsg = sprintf('Must be empty or an array of 2-3 component numbers from 1 to %d', total_comps);
-            comps2show = safeinput(next_prompt, next_validator, next_errmsg);
-        end        
-    end
-    
-    % convert to n_regions x 1 cell
-    comps2use = arrayfun(@(kC) find(comps2use(kC, :)), (1:n_chans)', 'uni', false);
-    res_mfile.(comp_fname) = comps2use;
 end
 
 %% Actually just use the component with highest variance:

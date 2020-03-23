@@ -12,7 +12,8 @@ opts = struct(...
     'chans',     'all',                  ... which channels, of those analyzed, to plot
     'save',      true,                   ... whether to save the figure
     'savedir',   default_savedir,        ... directory, if saving
-    'filename',  'multitaper.fig'        ... filename, if saving
+    'filename',  'multitaper.fig',       ... filename, if saving
+    'normonly',  true                    ... only make the normalized plot
     );
 
 if nargin < 2 || isempty(options)
@@ -37,8 +38,10 @@ end
 opts.chans = opts.chans(:).';
 n_chans = length(opts.chans);
 
-h_fig = figure('Position', [0, 0, 1800, 450*n_chans]);
-h_ax = gobjects(n_chans, 2);
+n_cols = 2 - opts.normonly;
+
+h_fig = figure('Position', [0, 0, 900*n_cols, 450*n_chans]);
+h_ax = gobjects(n_chans, n_cols);
 
 chan_names = result.options.chan_names;
 
@@ -46,24 +49,26 @@ for kC = 1:n_chans
     
     chan = opts.chans(kC);
     
-    % Plot power and normalized power spectra    
-    pxx_db = 10*log10(result.pxx{chan});
-        
-    h_ax(kC, 1) = subplot(n_chans, 2, kC*2 - 1);
-    newplot;
-    surface(result.time_grid, result.freq_grid, pxx_db, 'EdgeColor', 'none');
-    set(gca, 'YScale', 'log');
-    axis tight;
-    xlabel('Time (s)');
-    ylabel('Frequency (Hz)');
-    title(sprintf('Power in %s (dB)', chan_names{kC}));
+    if ~opts.normonly
+        % Plot power and normalized power spectra
+        pxx_db = 10*log10(result.pxx{chan});
+
+        h_ax(kC, 2) = subplot(n_chans, n_cols, kC*2 - 1);
+        newplot;
+        surface(result.time_grid, result.freq_grid, pxx_db, 'EdgeColor', 'none');
+        set(gca, 'YScale', 'log');
+        axis tight;
+        xlabel('Time (s)');
+        ylabel('Frequency (Hz)');
+        title(sprintf('Power in %s (dB)', chan_names{kC}));
+    end
 
     % include normalized/centered plot
     pxx_norm = result.pxx{chan} ./ sum(result.pxx{chan});
     pxx_norm_db = 10*log10(pxx_norm);
     pxx_norm_db_centered = pxx_norm_db - nanmean(pxx_norm_db, 2);
     
-    h_ax(kC, 2) = subplot(n_chans, 2, kC*2);
+    h_ax(kC, 1) = subplot(n_chans, n_cols, kC*n_cols);
     newplot;
     surface(result.time_grid, result.freq_grid, pxx_norm_db_centered, 'EdgeColor', 'none');
     set(gca, 'YScale', 'log');
@@ -77,6 +82,13 @@ linkaxes(h_ax, 'x');
 
 % Save figure
 if opts.save
+    if ~exist(opts.savedir, 'dir')
+        % try to create it
+        if ~mkdir(opts.savedir)
+            error('Could not create save directory %s', opts.savedir);
+        end
+    end
+
     savefig(h_fig, fullfile(opts.savedir, opts.filename), 'compact');
 end
 
