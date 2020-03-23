@@ -2,25 +2,44 @@
 
 prepSR;
 
-recdate = '2020-01-31';
-time = '12-52-00';
+recdate = '2020-03-06';
+time = '14-56-00';
 
 savedir = fullfile(results_dir, recdate, time);
 
 data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', recdate, time)));
 
-%% do analysis
+%% do low-resolution analysis first
 
 len_secs = size(data_s.meanSubFullTrace, 2) / data_s.finalSampR;
 
 options = struct;
-options.savedir = savedir;
+options.artifacts = [
+    6324, 6326
+    ];
 
-% chans based on 11-57-00 CSD:
-options.chans = [9, 45];
+% chans based on 17-00-00 CSD:
+options.chans = [22, 45];
 options.chan_names = {'V1', 'MC'};
 
-% try smaller window
+options.save = false;
+
+mt_res_lores = multitaper_analysis(data_s, options);
+
+%% plot & save lo-res
+
+plot_options = struct;
+plot_options.savedir = savedir;
+plot_options.filename = 'multitaper_lores.fig';
+
+plot_multitaper(mt_res_lores, plot_options);
+
+%% do high-res analysis
+
+options.save = true;
+options.savedir = savedir;
+
+% smaller window
 options.window = 6;
 options.padbase = 60; % use padding as if it were 60 seconds
 options.winstep = 0.1;

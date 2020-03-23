@@ -82,6 +82,13 @@ linkaxes(h_ax, 'x');
 
 % Save figure
 if opts.save
+    if ~exist(opts.savedir, 'dir')
+        % try to create it
+        if ~mkdir(opts.savedir)
+            error('Could not create save directory %s', opts.savedir);
+        end
+    end
+
     savefig(h_fig, fullfile(opts.savedir, opts.filename), 'compact');
 end
 

@@ -2,8 +2,8 @@
 
 prepSR;
 
-recdate = '2020-02-06';
-time = '13-47-00';
+recdate = '2020-03-11';
+time = '14-32-00';
 
 savedir = fullfile(results_dir, recdate, time);
 
@@ -14,14 +14,17 @@ data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', recdate, 
 len_secs = size(data_s.meanSubFullTrace, 2) / data_s.finalSampR;
 
 options = struct;
-options.savedir = savedir;
 options.artifacts = [
-    1387, 1391
-    5050, len_secs % (to end of recording)
-    ];
+    3039, 3041
+    4120, 4169
+    4194, 4211
+    4222, 4225
+    4736, 4738
+    6109, 6111
+];
 
-% chans based on 13-15-00 CSD:
-options.chans = [9, 39];
+% chans based on 16-33-00 CSD:
+options.chans = [18, 56];
 options.chan_names = {'V1', 'MC'};
 
 options.save = false;
@@ -38,18 +41,8 @@ plot_multitaper(mt_res_lores, plot_options);
 
 %% do high-res analysis
 
-len_secs = size(data_s.meanSubFullTrace, 2) / data_s.finalSampR;
-
-options = struct;
+options.save = true;
 options.savedir = savedir;
-options.artifacts = [
-    1387, 1391
-    5050, len_secs % (to end of recording)
-    ];
-
-% chans based on 13-15-00 CSD:
-options.chans = [9, 39];
-options.chan_names = {'V1', 'MC'};
 
 % smaller window
 options.window = 6;

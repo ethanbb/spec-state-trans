@@ -20,7 +20,7 @@ options.artifacts = [
     ];
 
 % chans based on 15-43-00 CSD:
-options.chans = [19, 55];
+options.chans = [13, 42];
 options.chan_names = {'V1', 'MC'};
 
 options.save = false;
@@ -50,7 +50,7 @@ options.artifacts = [
 % avoid channels 48-49 due to artifact @ 4533
 
 % chans based on 15-43-00 CSD:
-options.chans = [19, 55];
+options.chans = [13, 42];
 options.chan_names = {'V1', 'MC'};
 
 % smaller window

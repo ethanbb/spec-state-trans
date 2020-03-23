@@ -160,9 +160,12 @@ if ~exist('h_mt', 'var') || ~isvalid(h_mt)
     h_mt = openfig(fullfile(results_dir, recdate, time, 'multitaper.fig'));
 end
 
+% deal with figures that don't include unnormalized plots
+n_cols = numel(h_mt.Children) / n_chans;
+
 for kC = 1:n_chans
     figure(h_mt);
-    hax = subplot(n_chans, 2, 2*kC);
+    hax = subplot(n_chans, n_cols, n_cols*kC);
 
     % clear except for surface plot
     ax_plots = allchild(hax);

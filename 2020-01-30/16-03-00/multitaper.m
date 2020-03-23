@@ -15,6 +15,10 @@ options = struct;
 options.savedir = savedir;
 options.artifacts = [6074, 6077];
 
+% channels based on 15-50-00 CSD:
+options.chans = [20, 56];
+options.chan_names = {'V1', 'MC'};
+
 % smaller window
 options.window = 6;
 options.padbase = 60; % use padding as if it were 60 seconds
@@ -27,7 +31,3 @@ mt_res = multitaper_analysis(data_s, options);
 plot_options = struct('savedir', savedir);
 
 plot_multitaper(mt_res, plot_options);
-
-%% after PCA analysis: plot/save PCA change
-
-pca_change('mt_res.mat');

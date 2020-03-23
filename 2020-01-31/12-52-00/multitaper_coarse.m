@@ -17,6 +17,10 @@ options = struct;
 options.savedir = savedir;
 options.filename = 'mt_res_coarse.mat';
 
+% chans based on 11-57-00 CSD:
+options.chans = [9, 45];
+options.chan_names = {'V1', 'MC'};
+
 mt_res = multitaper_analysis(data_s, options);
 
 

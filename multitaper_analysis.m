@@ -19,7 +19,7 @@ lfp_organized = organize_lfp(data_s);
 opts = struct(...
    'chans',      [16, 48],       ... channel numbers to analyze (default = middle channel from each region)
    'chan_names', {{'VC', 'MC'}}, ...
-   'artifacts',  zeros(0, 2),    ... k x 2 list or k-length cell of [start, end] of artifacts, in seconds
+   'artifacts',  [],             ... k x 2 list or k-length cell of [start, end] of artifacts, in seconds
    'n_tapers',   17,             ... number of tapers
    'window',     60,             ... window length (sec)
    'pad',        [],             ... pad length (samples, default = next power of 2)
@@ -54,6 +54,10 @@ len_secs = size(lfp_organized, 2) / Fs;
 if iscell(opts.artifacts)
     opts.artifacts = cellfun(@(a) a(:).', opts.artifacts, 'uni', false);
     opts.artifacts = vertcat(opts.artifacts{:});
+end
+
+if isempty(opts.artifacts)
+    opts.artifacts = zeros(0, 2);
 end
 opts.artifacts = sortrows(opts.artifacts);
 
@@ -100,9 +104,21 @@ for kS = 1:n_segs
     res.seg_windows{kS} = find(win_mins >= opts.clean_segs(kS, 1) & ...
                                win_maxes <= opts.clean_segs(kS, 2));
     
-    res.seg_samples{kS} = win_mins(res.seg_windows{kS}(1))*Fs + 1 : ...
-                          win_maxes(res.seg_windows{kS}(end))*Fs;
-    
+    if ~isempty(res.seg_windows{kS})
+        res.seg_samples{kS} = round(win_mins(res.seg_windows{kS}(1))*Fs) + 1 : ...
+                              round(win_maxes(res.seg_windows{kS}(end))*Fs);
+    end
+end
+
+% remove segments that have no windows
+is_empty_seg = cellfun('isempty', res.seg_windows);
+
+opts.clean_segs(is_empty_seg, :) = [];
+res.seg_windows(is_empty_seg) = [];
+res.seg_samples(is_empty_seg) = [];
+n_segs = size(opts.clean_segs, 1);
+
+for kS = 1:n_segs
     for kC = 1:n_chans
                
         %------ grab the segment of data -------%
