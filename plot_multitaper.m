@@ -9,6 +9,7 @@ if ischar(result)
 end
 
 opts = struct(...
+    'pxx_name',  'pxx',                  ... fieldname (within result) of data to plot
     'chans',     'all',                  ... which channels, of those analyzed, to plot
     'save',      true,                   ... whether to save the figure
     'savedir',   default_savedir,        ... directory, if saving
@@ -51,7 +52,7 @@ for kC = 1:n_chans
     
     if ~opts.normonly
         % Plot power and normalized power spectra
-        pxx_db = 10*log10(result.pxx{chan});
+        pxx_db = 10*log10(result.(opts.pxx_name){chan});
 
         h_ax(kC, 2) = subplot(n_chans, n_cols, kC*2 - 1);
         newplot;
@@ -64,7 +65,7 @@ for kC = 1:n_chans
     end
 
     % include normalized/centered plot
-    pxx_norm = result.pxx{chan} ./ sum(result.pxx{chan});
+    pxx_norm = result.(opts.pxx_name){chan} ./ sum(result.(opts.pxx_name){chan});
     pxx_norm_db = 10*log10(pxx_norm);
     pxx_norm_db_centered = pxx_norm_db - nanmean(pxx_norm_db, 2);
     

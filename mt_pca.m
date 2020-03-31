@@ -15,6 +15,7 @@ function [pc_data_all, fh] = mt_pca(result_files, options)
 % second output is an array of figure handles.
 
 opts = struct(...
+    'pxx_name',         'pxx',      ... variable name of input time-frequency data
     'name',             'pxx_pca',  ... variable name of output in each input file
     'chans',            'all',      ... of processed channels, which ones to use for each dataset (array of indices or 'all')
                                     ... can also be a cell of selections for each input
@@ -48,8 +49,11 @@ n_files = numel(result_files);
 c_pxx = cell(1, n_files);
 c_lengths = cell(1, n_files);
 
+nchans_orig = zeros(n_files, 1);
+
 for kF = 1:n_files
     mfile = matfile(result_files{kF});
+    nchans_orig(kF) = numel(mfile.(opts.pxx_name));
     
     if kF == 1
         % get the frequency axis while we're here
@@ -62,11 +66,11 @@ for kF = 1:n_files
     chans = opts.chans{kF};
     if ischar(chans)
         assert(strcmpi(chans, 'all'), 'Unrecognized ''chans'' input');
-        opts.chans{kF} = 1:numel(mfile.pxx);
+        opts.chans{kF} = 1:nchans_orig(kF);
         chans = opts.chans{kF};
     end
     
-    pxx_file = mfile.pxx;
+    pxx_file = mfile.(opts.pxx_name);
     c_pxx{kF} = [pxx_file{chans}];
     c_lengths{kF} = cellfun(@(p) size(p, 2), pxx_file(chans));
 end
@@ -153,7 +157,7 @@ assert(n_assigned == size(pc_data, 1), 'Uh oh, there''s an indexing problem');
 if opts.save
     for kF = 1:n_files
         mfile = matfile(result_files{kF}, 'Writable', true');
-        mfile.(opts.name) = cell(numel(mfile.pxx), 1);
+        mfile.(opts.name) = cell(nchans_orig(kF), 1);
         mfile.(opts.name)(opts.chans{kF}, 1) = pc_data_all{kF};
         mfile.([opts.name, '_opts']) = opts;
     end

@@ -3,8 +3,9 @@
 
 %% Setup
 
-redo_all = false; % change to true to recompute from scratch
+redo_all = true; % change to true to recompute from scratch
 
+redo_smooth = redo_all || false; % change to true to redo pre-PCA smoothing
 redo_pca = redo_all || false; % change to true to redo PCA
 redo_comps = redo_all || false; % change to true to re-visualize PCA and select components
 redo_change = redo_all || false; % change to true to recalculate change speeds
@@ -25,6 +26,43 @@ chans = res_mfile.name;
 chan_vnames = cellfun(@matlab.lang.makeValidName, chans, 'uni', false);
 n_chans = numel(chans);
 
+%% Smooth pxx before doing PCA
+
+smooth_fname = 'pxx_smooth';
+
+if redo_smooth || ~isprop(res_mfile, smooth_fname)
+    
+    pxx = res_mfile.pxx;
+    pxx_smooth = cell(n_chans, 1);
+
+    for kC = 1:n_chans
+        chan_pxx = pxx{kC};
+
+        % smooth across frequencies with a median filter
+        pxx_freqsmooth = medfilt1(chan_pxx, 40);
+
+        % exponential smoothing in time:
+        smooth_span = 100; % seconds
+        sm_span_samp = smooth_span * Fw;
+        kernel_samps = (1:sm_span_samp) - ceil(sm_span_samp/2);
+        tau = sm_span_samp / 6.25; % to make it match edge of Gaussian w/ 2.5 SDs on each tail
+        kernel = exp(-abs(kernel_samps)/tau);
+        kernel = kernel ./ sum(kernel);
+
+        pxx_smooth{kC} = convn_correct(pxx_freqsmooth, kernel);    
+    end
+
+    res_mfile.(smooth_fname) = pxx_smooth;
+end
+
+%% Plot and save smoothed data
+
+plot_opts = struct;
+plot_opts.pxx_name = smooth_fname;
+plot_opts.filename = 'multitaper_sm.fig';
+
+plot_multitaper(res_file, plot_opts);
+
 %% Do PCA, just taking 10 components b/c going to decide which ones to keep visually
 
 pc_data = cell(n_chans, 1);
@@ -38,6 +76,7 @@ for kC = 1:n_chans
         pc_data(kC) = res_mfile.(res_name)(kC, 1);
     else
         pca_opts = struct;
+        pca_opts.pxx_name = smooth_fname;
         pca_opts.name = res_name;
         pca_opts.chans = kC;
         pca_opts.thresh_type = 'comps';
@@ -71,15 +110,13 @@ for kC = 1:n_chans
     change_opts = struct;
     change_opts.pca_name = sprintf('pxx_pca_1rec_%s', chan_vnames{kC});
     change_opts.comps = comps2use{kC};
-    change_opts.smooth_method = 'gaussian';
     change_opts.name = change_fname;
     change_opts.savefigs = false;
     
-    % more smoothing:
-    change_opts.smooth_span = 100;
+    % no smoothing here:
+    change_opts.smooth_span = 1;
 
-    % exponential smoothing:
-    change_opts.smooth_method = 'exp';
+    % regular diff
     change_opts.diff_step = 1/Fw; % detect sharp change right at sample of interest
 
     change_opts.norm_type = 'none'; % get velocity instead of speed (meaningful peaks & troughs)
