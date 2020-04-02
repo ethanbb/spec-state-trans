@@ -39,20 +39,20 @@ end
 opts.chans = opts.chans(:).';
 n_chans = length(opts.chans);
 
-n_cols = 2 - opts.normonly;
+% get subset of pxx and names according to chans
+pxx = result.(opts.pxx_name)(opts.chans);
+chan_names = result.options.chan_names(opts.chans);
 
+% set up figure
+n_cols = 2 - opts.normonly;
 h_fig = figure('Position', [0, 0, 900*n_cols, 450*n_chans]);
 h_ax = gobjects(n_chans, n_cols);
 
-chan_names = result.options.chan_names;
-
 for kC = 1:n_chans
-    
-    chan = opts.chans(kC);
     
     if ~opts.normonly
         % Plot power and normalized power spectra
-        pxx_db = 10*log10(result.(opts.pxx_name){chan});
+        pxx_db = 10*log10(pxx{kC});
 
         h_ax(kC, 2) = subplot(n_chans, n_cols, kC*2 - 1);
         newplot;
@@ -65,7 +65,7 @@ for kC = 1:n_chans
     end
 
     % include normalized/centered plot
-    pxx_norm = result.(opts.pxx_name){chan} ./ sum(result.(opts.pxx_name){chan});
+    pxx_norm = pxx{kC} ./ sum(pxx{kC});
     pxx_norm_db = 10*log10(pxx_norm);
     pxx_norm_db_centered = pxx_norm_db - nanmean(pxx_norm_db, 2);
     

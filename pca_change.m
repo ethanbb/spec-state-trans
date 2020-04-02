@@ -84,14 +84,13 @@ data_raw = cellfun(@(pcd) pcd(opts.comps, :), data_raw, 'uni', false);
 
 % smooth before diffing
 if strcmpi(opts.smooth_method, 'exp')
-    % manually implement exponential smoothing
-    
-    kernel_samps = (1:sm_span_samp) - ceil(sm_span_samp/2);
-    tau = sm_span_samp / 6.25; % to make it match edge of Gaussian w/ 2.5 SDs on each tail
-    kernel = exp(-abs(kernel_samps)/tau);
-    kernel = kernel ./ sum(kernel);
 
-    data_sm = cellfun(@(pcd) convn_correct(pcd, kernel), data_raw, 'uni', false);
+    % manually implement exponential smoothing
+    % match width for same decay @ edge of Gaussian w/ 2.5 SDs (default for smoothdata)
+    decay_2t = normpdf(2.5) / normpdf(0);
+    [b_exp, a_exp] = exp_filter(sm_span_samp, decay_2t);
+    
+    data_sm = filtfilt_segs(b_exp, a_exp, data_raw, data_s.seg_windows, 2);
 else
     data_sm = cellfun(@(pcd) smoothdata(pcd, 2, opts.smooth_method, sm_span_samp, 'includenan'), ...
         data_raw, 'uni', false);

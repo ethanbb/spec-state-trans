@@ -121,12 +121,14 @@ imagesc(coeff(:, 1:num2keep));
 axis tight;
 set(gca, 'YDir', 'normal');
 set(gca, 'XTick', 1:num2keep);
-
-ytickinds = 1:20:size(coeff, 1);
-set(gca, 'YTick', ytickinds);
-set(gca, 'YTickLabel', freq_axis(ytickinds));
 xlabel('PC#');
-ylabel('Frequency (Hz)');
+
+if size(coeff, 1) == length(freq_axis) % otherwise don't bother with the y axis
+    ytickinds = 1:20:size(coeff, 1);
+    set(gca, 'YTick', ytickinds);
+    set(gca, 'YTickLabel', freq_axis(ytickinds));
+    ylabel('Frequency (Hz)');
+end
 
 if strcmp(opts.thresh_type, 'var')
     title(sprintf('Loadings of PCs each explaining >= %.2f%% of variance', opts.thresh));
