@@ -4,10 +4,15 @@
 
 **Hypothesis:** State transitions that occur in both analyzed regions (V1 and motor cortex) tend to consistently happen in one region before the other.
 
-## Code organization
+## Dependencies - clone next to this repository:
 
-* Depends on utilities in [ethanbb/proektlab-matlab-tools](https://github.com/ethanbb/proektlab-matlab-tools). The tools repository should be cloned next to this one (i.e. they should be in sibling directories).
-  * In `proektlab-matlab-tools/prepSR.m`, change `box_dir` to be a local path to the contents of the "Blackwood" data folder on Box.
+* [proektlab/Ethan_misc](https://github.com/proektlab/Ethan_misc)
+  * Add `Ethan_misc` to the MATLAB path.
+  * In `Ethan_misc/prepSR.m`, change `box_dir` to be a local path to the contents of the "Blackwood" data folder on Box.
+
+* [proektlab/SpectralAnalysis](https://github.com/proektlab/SpectralAnalysis)
+
+## Code organization
 
 * The root folder contains common functions for doing each step of the analysis, as well as the final analysis script that uses data from all recordings.
 
