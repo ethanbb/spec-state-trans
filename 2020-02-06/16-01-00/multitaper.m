@@ -20,7 +20,8 @@ options.artifacts = [
     ];
 
 % chans based on 15-43-00 CSD:
-options.chans = [13, 42];
+% chans 12-14 have artifact @ 276-278 s
+options.chans = [11, 42];
 options.chan_names = {'V1', 'MC'};
 
 options.save = false;

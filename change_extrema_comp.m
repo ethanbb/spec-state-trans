@@ -22,10 +22,14 @@ n_recs = length(recs);
 all_matched_peaks = cell(1, n_recs);
 all_matched_troughs = cell(1, n_recs);
 
+max_max_dist = 0;
+
 for kR = 1:n_recs
     res = matfile(fullfile(results_dir, recs{kR}, 'mt_res.mat'));
     all_matched_peaks{kR} = res.matched_peaks;
     all_matched_troughs{kR} = res.matched_troughs;
+
+    max_max_dist = max(max_max_dist, res.match_max_dist);
 end
 
 all_matched_peaks = cell2mat(all_matched_peaks);
@@ -35,18 +39,29 @@ peak_diffs = -diff(all_matched_peaks);
 trough_diffs = -diff(all_matched_troughs);
 
 figure;
-t = tiledlayout(1, 2, 'TileSpacing', 'compact');
+t = tiledlayout(7, 2, 'TileSpacing', 'compact');
 title(t, 'Lags of spectral change extrema in MC from matched extrema in V1');
 
-nexttile;
-histogram(peak_diffs, 10, 'BinLimits', [-45, 45]);
+h1 = nexttile([5, 1]);
+histogram(peak_diffs, 10, 'BinLimits', [-max_max_dist, max_max_dist]);
 xlabel('Lag (s)');
 ylabel('Count');
 title(sprintf('Change peaks (N = %d)', length(peak_diffs)));
 
-nexttile;
-histogram(trough_diffs, 10, 'BinLimits', [-45, 45]);
+h2 = nexttile([5, 1]);
+histogram(trough_diffs, 10, 'BinLimits', [-max_max_dist, max_max_dist]);
 xlabel('Lag (s)');
 ylabel('Count');
 title(sprintf('Change troughs (N = %d)', length(trough_diffs)));
+
+h3 = nexttile([2, 1]);
+boxplot(peak_diffs, 'Orientation', 'horizontal', 'BoxStyle', 'filled', 'Colors', 'k');
+box off;
+
+h4 = nexttile([2, 1]);
+boxplot(trough_diffs, 'Orientation', 'horizontal', 'BoxStyle', 'filled', 'Colors', 'k');
+box off;
+
+linkaxes([h1, h3], 'x');
+linkaxes([h2, h4], 'x');
 

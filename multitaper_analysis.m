@@ -118,40 +118,57 @@ res.seg_windows(is_empty_seg) = [];
 res.seg_samples(is_empty_seg) = [];
 n_segs = size(opts.clean_segs, 1);
 
-for kS = 1:n_segs
-    for kC = 1:n_chans
-               
-        %------ grab the segment of data -------%
+% prepare for parallelization
+pxx = cell(n_chans, n_segs);
+phase = cell(n_chans, n_segs);
+freq_grid = cell(n_chans, n_segs);
+input_lfp = cell(n_chans, n_segs);
+
+% extract each segment of data, with padding to force it to process all windows
+extra_zeros = zeros(1, opts.winstep * Fs);
+for kC = 1:n_chans
+    for kS = 1:n_segs
+        input_lfp{kC, kS} = [lfp_organized(opts.chans(kC), res.seg_samples{kS}), extra_zeros];
+    end
+end
+
+do_mt = @(lfp) swTFspecAnalog(lfp, Fs, opts.n_tapers, ...
+    [opts.min_freq, opts.max_freq], opts.window * Fs, ...
+    opts.winstep * Fs, [], opts.pad, [], [], [], opts.inc_phase);
+
+inc_phase = opts.inc_phase;
+
+n_analyses = n_chans * n_segs;
+parfor kA = 1:n_analyses
+
+    mt_res = do_mt(input_lfp{kA});
+    
+    freq_grid{kA} = mt_res.freq_grid; % should be the same on all runs
+    
+    pxx{kA} = squeeze(mt_res.tfse).';
+    if inc_phase
+        phase{kA} = squeeze(mt_res.phase).';
+    end
+end
+
+res.freq_grid = freq_grid{1};
+n_freqs = length(res.freq_grid);
+
+% concatenate segments (with nans in between) in res struct.
+for kC = 1:n_chans
+
+    % initialize all to nans, then fill in the steps that get
+    % computed
+    res.pxx{kC} = nan(n_freqs, n_steps);
+    if inc_phase
+        res.phase{kC} = nan(n_freqs, n_steps);
+    end
+
+    for kS = 1:n_segs
         
-        % pad with zeros to force it to process all the windows
-        extra_zeros = zeros(1, opts.winstep * Fs);
-        
-        lfp_seg = [lfp_organized(opts.chans(kC), res.seg_samples{kS}), extra_zeros];
-                
-        %------ do multitaper analysis ---------%
-        
-        mt_res = swTFspecAnalog(lfp_seg, Fs, opts.n_tapers, ...
-            [opts.min_freq, opts.max_freq], opts.window * Fs, ...
-            opts.winstep * Fs, [], opts.pad, [], [], [], opts.inc_phase);
-        
-        if kS == 1
-            if kC == 1
-                % on the very first call, make frequency grid
-                res.freq_grid = mt_res.freq_grid;
-                n_freqs = length(res.freq_grid);
-            end
-            
-            % initialize all to nans, then fill in the steps that get
-            % computed
-            res.pxx{kC} = nan(n_freqs, n_steps);
-            if opts.inc_phase
-                res.phase{kC} = nan(n_freqs, n_steps);
-            end
-        end
-        
-        res.pxx{kC}(:, res.seg_windows{kS}) = squeeze(mt_res.tfse).';
+        res.pxx{kC}(:, res.seg_windows{kS}) = pxx{kC, kS};
         if opts.inc_phase
-            res.phase{kC}(:, res.seg_windows{kS}) = squeeze(mt_res.phase).';
+            res.phase{kC}(:, res.seg_windows{kS}) = phase{kC, kS};
         end
     end
 end

@@ -5,6 +5,7 @@
 
 redo_all = false; % change to true to recompute from scratch
 
+redo_smooth = redo_all || false; % change to true to redo pre-PCA smoothing
 redo_pca = redo_all || false; % change to true to redo PCA
 redo_comps = redo_all || false; % change to true to re-visualize PCA and select components
 redo_change = redo_all || false; % change to true to recalculate change speeds
@@ -15,8 +16,10 @@ prepSR;
 
 recdate = '2020-02-06';
 time = '16-01-00';
-res_file = fullfile(results_dir, recdate, time, 'mt_res.mat');
-res_mfile = matfile(res_file, 'Writable', true);
+save_dir = fullfile(results_dir, recdate, time);
+
+res_path = fullfile(save_dir, 'mt_res.mat');
+res_mfile = matfile(res_path, 'Writable', true);
 
 mt_opts = res_mfile.options; % necessary due to MatFile quirk
 Fw = 1 / mt_opts.winstep; % "window rate"
@@ -24,6 +27,37 @@ Fw = 1 / mt_opts.winstep; % "window rate"
 chans = res_mfile.name;
 chan_vnames = cellfun(@matlab.lang.makeValidName, chans, 'uni', false);
 n_chans = numel(chans);
+
+%% Smooth pxx before doing PCA
+
+smooth_fname = 'pxx_smooth';
+
+if redo_smooth || ~isprop(res_mfile, smooth_fname)
+
+    pxx = res_mfile.pxx;
+    pxx_smooth = cell(size(pxx));
+
+    for kC = 1:n_chans
+        chan_pxx = pxx{kC};
+
+        % smooth across frequencies with a median filter
+        pxx_freqsmooth = medfilt1(chan_pxx, 40);
+
+        % exponential smoothing in time:
+        smooth_span = 60; % seconds
+        sm_span_samp = smooth_span * Fw;
+        decay_2t = normpdf(2.5) / normpdf(0);
+        [b_exp, a_exp] = exp_filter(sm_span_samp, decay_2t);
+
+        % manually filter forward and backward since filtfilt can't deal with nans or matrices
+        pxx_smooth{kC} = filtfilt_segs(b_exp, a_exp, pxx_freqsmooth, res_mfile.seg_windows, 2);
+
+        % gaussian smoothing
+%         pxx_smooth{kC} = smoothdata(pxx_freqsmooth, 2, 'gaussian', sm_span_samp, 'includenan');
+    end
+
+    res_mfile.(smooth_fname) = pxx_smooth;
+end
 
 %% Do PCA, just taking 10 components b/c going to decide which ones to keep visually
 
@@ -38,14 +72,15 @@ for kC = 1:n_chans
         pc_data(kC) = res_mfile.(res_name)(kC, 1);
     else
         pca_opts = struct;
+        pca_opts.pxx_name = smooth_fname;
         pca_opts.name = res_name;
         pca_opts.chans = kC;
         pca_opts.thresh_type = 'comps';
         pca_opts.thresh = total_comps;
 
-        [pc_data(kC), fh] = mt_pca(res_file, pca_opts);
+        [pc_data(kC), fh] = mt_pca(res_path, pca_opts);
 
-        savefig(fh, sprintf('pca_%s.fig', chan_vnames{kC}));
+        savefig(fh, fullfile(save_dir, sprintf('pca_%s.fig', chan_vnames{kC})));
     end
 end
 
@@ -57,8 +92,8 @@ if ~redo_comps && isprop(res_mfile, comp_fname)
     comps2use = res_mfile.(comp_fname);
 else
     % these times of interest have been painstakingly manually identified
-    hstarts = [1521, 2197, 3722, 4530, 5180, 6081, 7619]; % in seconds
-    hends = [1614, 2634, 3814, 4702, 5259, 6240, 7712];   % ditto
+    hstarts = [0, 452, 1521, 2197, 2504, 3722, 4530, 5180, 6081, 7619]; % in seconds
+    hends = [262, 809, 1614, 2346, 2634, 3814, 4702, 5259, 6240, 7712];   % ditto
     
     Fs_mt = 10; % since our window step is 0.1 seconds, sample freq = 10 Hz
     htimes = arrayfun(@(s, e) Fs_mt*s+1:Fs_mt*e, hstarts, hends, 'uni', false);
@@ -75,14 +110,15 @@ else
         while ~isempty(comps2show)
             
             hold off;
-            dscatter(pc_data{kC}(comps2show, :));
+            comps = pc_data{kC}(comps2show, :);
+            dscatter(comps);
             set(gca, 'Interactions', [zoomInteraction, rotateInteraction, rulerPanInteraction]);
             hold on;
             xlabel(sprintf('PC%d', comps2show(1)));
             ylabel(sprintf('PC%d', comps2show(2)));
             
             % show times of interest
-            hdata = arrayfun(@(c) pc_data{kC}(c, htimes), comps2show, 'uni', false);
+            hdata = num2cell(comps(:, htimes), 2);
             if length(comps2show) == 3
                 zlabel(sprintf('PC%d', comps2show(3)));
                 scatter3(hdata{:}, 20, 'r', 'o');
@@ -135,20 +171,23 @@ for kC = 1:n_chans
     change_opts = struct;
     change_opts.pca_name = sprintf('pxx_pca_1rec_%s', chan_vnames{kC});
     change_opts.comps = comps2use{kC};
-    change_opts.smooth_method = 'gaussian';
+%     change_opts.smooth_method = 'gaussian';
     change_opts.name = change_fname;
     change_opts.savefigs = false;
-    
-    % more smoothing:
-    change_opts.smooth_span = 100;
 
-    % exponential smoothing:
-    change_opts.smooth_method = 'exp';
+    % don't smooth here:
+    change_opts.smooth_span = 1;
+
+%     % more smoothing:
+%     change_opts.smooth_span = 100;
+% 
+%     % exponential smoothing:
+%     change_opts.smooth_method = 'exp';
     change_opts.diff_step = 1/Fw; % detect sharp change right at sample of interest
 
-    change_opts.norm_type = 'none'; % get velocity instead of speed (meaningful peaks & troughs)
+    %change_opts.norm_type = 'none'; % get velocity instead of speed (meaningful peaks & troughs)
     
-    [change_vel{kC}, change_time] = pca_change(res_file, change_opts);
+    [change_vel{kC}, change_time] = pca_change(res_path, change_opts);
     title(sprintf('%s PC1 velocity', chans{kC}));
     change_fhs(kC) = gcf;
     savefig(change_fhs(kC), change_figname);
