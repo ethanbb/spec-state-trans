@@ -14,7 +14,8 @@ opts = struct(...
     'save',      true,                   ... whether to save the figure
     'savedir',   default_savedir,        ... directory, if saving
     'filename',  'multitaper.fig',       ... filename, if saving
-    'normonly',  true                    ... only make the normalized plot
+    'normonly',  true,                   ... only make the normalized plot
+    'xfreqnorm', false                   ... true to normalize pwr across freqs at each time
     );
 
 if nargin < 2 || isempty(options)
@@ -50,9 +51,10 @@ h_ax = gobjects(n_chans, n_cols);
 
 for kC = 1:n_chans
     
+    pxx_db = 10*log10(pxx{kC});
+
     if ~opts.normonly
         % Plot power and normalized power spectra
-        pxx_db = 10*log10(pxx{kC});
 
         h_ax(kC, 2) = subplot(n_chans, n_cols, kC*2 - 1);
         newplot;
@@ -65,18 +67,28 @@ for kC = 1:n_chans
     end
 
     % include normalized/centered plot
-    pxx_norm = pxx{kC} ./ sum(pxx{kC});
-    pxx_norm_db = 10*log10(pxx_norm);
-    pxx_norm_db_centered = pxx_norm_db - nanmean(pxx_norm_db, 2);
+    if opts.xfreqnorm
+        pxx_norm = pxx{kC} ./ sum(pxx{kC});
+        pxx_norm_db = 10*log10(pxx_norm);
+        pxx_centered = pxx_norm_db - nanmean(pxx_norm_db, 2);
+    else % just subtract mean in log space (i.e. normalize by geometric mean)
+        pxx_centered = pxx_db - nanmean(pxx_db, 2);
+    end
     
     h_ax(kC, 1) = subplot(n_chans, n_cols, kC*n_cols);
     newplot;
-    surface(result.time_grid, result.freq_grid, pxx_norm_db_centered, 'EdgeColor', 'none');
+    surface(result.time_grid, result.freq_grid, pxx_centered, 'EdgeColor', 'none');
     set(gca, 'YScale', 'log');
     axis tight;
     xlabel('Time (s)');
     ylabel('Frequency (Hz)');
-    title(sprintf('Change from average of normalized spectrum in %s (dB)', chan_names{kC}));
+
+    if opts.xfreqnorm
+        fs = 'Normalized power distribution over time in %s (dB)';
+    else
+        fs = 'Normalized power in %s (dB)';
+    end
+    title(sprintf(fs, chan_names{kC}));
 end
 
 linkaxes(h_ax, 'x');
