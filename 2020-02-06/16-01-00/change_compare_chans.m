@@ -150,7 +150,7 @@ else
 end
 
 %% Actually just use the component with highest variance:
-comps2use = repmat({1}, n_chans, 1);
+% comps2use = repmat({1}, n_chans, 1);
 
 %% Compute change velocity for each channel using pca_change
 

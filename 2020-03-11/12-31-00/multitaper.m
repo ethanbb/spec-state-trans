@@ -18,9 +18,9 @@ options.artifacts = [
     288, 290
 ];
 
-% chans based on 11-31-00 CSD:
-options.chans = [21, 57];
-options.chan_names = {'V1', 'MC'};
+% chans based on 11-31-00 CSD (using 3 neighboring channels per region):
+options.chans = [20, 21, 22, 56, 57, 58];
+options.chan_names = {'V1_1', 'V1_2', 'V1_3', 'MC_1', 'MC_2', 'MC_3'};
 
 options.save = false;
 
@@ -50,5 +50,6 @@ mt_res = multitaper_analysis(data_s, options);
 %% plot
 
 plot_options = struct('savedir', savedir);
+plot_options.chans = [2, 5];
 
 plot_multitaper(mt_res, plot_options);
