@@ -34,29 +34,16 @@ smooth_fname = 'pxx_smooth';
 
 if redo_smooth || ~isprop(res_mfile, smooth_fname)
 
-    pxx = res_mfile.pxx;
-    pxx_smooth = cell(size(pxx));
+    % preprocessing options
+    pp_opts = struct;
+    pp_opts.name = smooth_fname;
+    pp_opts.freq_sm_type = 'med';
+    pp_opts.freq_sm_span = 40;
+    pp_opts.time_sm_type = 'exp';
+    pp_opts.time_sm_span = 60;
+    pp_opts.norm_type = 'rank';
 
-    for kC = 1:n_chans
-        chan_pxx = pxx{kC};
-
-        % smooth across frequencies with a median filter
-        pxx_freqsmooth = medfilt1(chan_pxx, 40);
-
-        % exponential smoothing in time:
-        smooth_span = 60; % seconds
-        sm_span_samp = smooth_span * Fw;
-        decay_2t = normpdf(2.5) / normpdf(0);
-        [b_exp, a_exp] = exp_filter(sm_span_samp, decay_2t);
-
-        % manually filter forward and backward since filtfilt can't deal with nans or matrices
-        pxx_smooth{kC} = filtfilt_segs(b_exp, a_exp, pxx_freqsmooth, res_mfile.seg_windows, 2);
-
-        % gaussian smoothing
-%         pxx_smooth{kC} = smoothdata(pxx_freqsmooth, 2, 'gaussian', sm_span_samp, 'includenan');
-    end
-
-    res_mfile.(smooth_fname) = pxx_smooth;
+    mt_preprocess(res_mfile, pp_opts);
 end
 
 %% Do PCA, just taking 10 components b/c going to decide which ones to keep visually

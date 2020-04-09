@@ -76,18 +76,12 @@ for kF = 1:n_files
 end
 pxx = cell2mat(c_pxx);
 
-% normalize w/r/t total power and take log
-pxx_norm = pxx ./ sum(pxx);
-pxx_norm_db = 10*log10(pxx_norm);
-
-features = pxx_norm_db;
-
 %------------------ Do PCA ---------------------%
 
 if strcmp(opts.thresh_type, 'comps')
-    [coeff, pc_data, ~, ~, explained] = pca(features.', 'NumComponents', opts.thresh);
+    [coeff, pc_data, ~, ~, explained] = pca(pxx.', 'NumComponents', opts.thresh);
 else
-    [coeff, pc_data, ~, ~, explained] = pca(features.');
+    [coeff, pc_data, ~, ~, explained] = pca(pxx.');
     
 end
 
