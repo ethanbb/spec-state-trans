@@ -1,6 +1,13 @@
-function res_data = mt_preprocess(res_data_or_filename, options)
+function res_data = mt_preprocess(data_or_filename, options)
 % Preprocess the output of multitaper for further analyses.
 % This includes smoothing/filtering in time and frequency axes and normalization.
+%
+% First input can either be:
+%  * a mt_res filename, in which case results are loaded from and saved to the file
+%    and the cell of processed spectrograms is returned.
+%  * a MatFile object, which is treated the same as a filename after loading
+%  * a struct, in which case results are takend from the field $in_name and saved to $name,
+%    and the whole updated struct is returned.
 %
 % Valid normalization types:
 %   'none'        - do nothing
@@ -10,10 +17,10 @@ function res_data = mt_preprocess(res_data_or_filename, options)
 %   'rank'        - output rank-order scores (values in range [0, 1])
 
 % Load as MatFile object if a filename
-if ischar(res_data_or_filename)
-    res_data = matfile(res_data_or_filename);
+if ischar(data_or_filename)
+    res_data = matfile(data_or_filename);
 else
-    res_data = res_data_or_filename;
+    res_data = data_or_filename;
 end
 
 % Default options:
@@ -86,6 +93,11 @@ for kC = 1:n_chans
 end
 
 res_data.(opts.name) = pxx_pp;
+
+% if we're not dealing with a struct, just return the preprocessed results
+if ~isstruct(data_or_filename)
+    res_data = res_data.(opts.name);
+end
 
 end
 

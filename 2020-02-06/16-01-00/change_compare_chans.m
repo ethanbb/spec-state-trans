@@ -3,7 +3,7 @@
 
 %% Setup
 
-redo_all = false; % change to true to recompute from scratch
+redo_all = true; % change to true to recompute from scratch
 
 redo_smooth = redo_all || false; % change to true to redo pre-PCA smoothing
 redo_pca = redo_all || false; % change to true to redo PCA
@@ -28,23 +28,6 @@ chans = res_mfile.name;
 chan_vnames = cellfun(@matlab.lang.makeValidName, chans, 'uni', false);
 n_chans = numel(chans);
 
-%% Smooth pxx before doing PCA
-
-smooth_fname = 'pxx_smooth';
-
-if redo_smooth || ~isprop(res_mfile, smooth_fname)
-
-    % preprocessing options
-    pp_opts = struct;
-    pp_opts.name = smooth_fname;
-    pp_opts.freq_sm_type = 'med';
-    pp_opts.freq_sm_span = 40;
-    pp_opts.time_sm_type = 'exp';
-    pp_opts.time_sm_span = 60;
-    pp_opts.norm_type = 'rank';
-
-    mt_preprocess(res_mfile, pp_opts);
-end
 
 %% Do PCA, just taking 10 components b/c going to decide which ones to keep visually
 
@@ -59,7 +42,7 @@ for kC = 1:n_chans
         pc_data(kC) = res_mfile.(res_name)(kC, 1);
     else
         pca_opts = struct;
-        pca_opts.pxx_name = smooth_fname;
+        pca_opts.pxx_name = 'pxx_pp';
         pca_opts.name = res_name;
         pca_opts.chans = kC;
         pca_opts.thresh_type = 'comps';

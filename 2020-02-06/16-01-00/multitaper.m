@@ -33,9 +33,23 @@ options.save = false;
 
 mt_res_lores = multitaper_analysis(data_s, options);
 
+%% preprocess
+
+pp_options = struct;
+pp_options.name = 'pxx_pp';
+pp_options.freq_sm_type = 'med';
+pp_options.freq_sm_span = 40;
+pp_options.time_sm_type = 'exp';
+pp_options.time_sm_span = 60;
+pp_options.norm_type = 'log_z';
+
+mt_res_lores = mt_preprocess(mt_res_lores, pp_options);
+
 %% plot & save lo-res
 
 plot_options = struct;
+plot_options.pxx_name = 'pxx_pp';
+plot_options.save = true;
 plot_options.savedir = savedir;
 plot_options.filename = 'multitaper_lores.fig';
 
@@ -52,9 +66,12 @@ options.save = true;
 
 mt_res = multitaper_analysis(data_s, options);
 
+%% preprocess
+
+mt_preprocess(mt_res, pp_options);
 
 %% plot
 
-plot_options = struct('savedir', savedir);
+plot_options.filename = 'multitaper.fig';
 
 plot_multitaper(mt_res, plot_options);
