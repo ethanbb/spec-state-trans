@@ -3,7 +3,7 @@
 
 %% Setup
 
-redo_all = true; % change to true to recompute from scratch
+redo_all = false; % change to true to recompute from scratch
 
 redo_smooth = redo_all || false; % change to true to redo pre-PCA smoothing
 redo_pca = redo_all || false; % change to true to redo PCA
