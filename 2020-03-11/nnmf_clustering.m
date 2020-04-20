@@ -3,8 +3,8 @@
 prepSR;
 
 recs = {
-    '2020-02-06/16-01-00'
-    '2020-02-06/13-47-00'
+    '2020-03-11/12-31-00'
+    '2020-03-11/14-32-00'
     };
 
 res_paths = fullfile(results_dir, recs, 'mt_res.mat');
@@ -15,10 +15,10 @@ for kP = 1:n_paths
     res_mfiles{kP} = matfile(res_paths{kP}, 'Writable', true);
 end
 
-mt_opts = res_mfiles{1}.options; % necessary due to MatFile quirk
+mt_opts = res_mfiles{2}.options; % necessary due to MatFile quirk
 Fw = 1 / mt_opts.winstep; % "window rate"
 
-chans = res_mfiles{1}.name;
+chans = res_mfiles{2}.name;
 chan_vnames = cellfun(@matlab.lang.makeValidName, chans, 'uni', false);
 n_chans = numel(chans);
 
@@ -44,7 +44,14 @@ last_ind = 0;
 last_ind_nonan = 0;
 
 for kP = 1:n_paths
-    all_data(:, kP) = mt_preprocess(res_mfiles{kP}, pp_options);
+    pxx_pp = mt_preprocess(res_mfiles{kP}, pp_options);
+    
+    % deal with the fact that I did 6 channels in the first dataset as an experiment
+    if length(pxx_pp) == 6
+        all_data(:, kP) = pxx_pp([2, 5]);
+    else    
+        all_data(:, kP) = pxx_pp;
+    end
     
     for kC = 1:n_chans
         chan_inds{kC, kP} = last_ind + (1:size(all_data{kC, kP}, 2));
@@ -77,20 +84,20 @@ data2use(data2use > qs(2)) = qs(2);
 
 %% Test how many NNMF components satisfactorily reduce error - on downsampled data
 
-n_comp_options = 1:18;
-
-data2use_ds = data2use(1:20:end, :);
-BCV_err = nnmf_k_ver(exp(data2use_ds), round(size(data2use_ds) / 10), 10, ...
-    n_comp_options(1), n_comp_options(end), [], 500000);
-
-figure;
-scatter(reshape(repmat(n_comp_options, size(BCV_err, 1), 1), [], 1), BCV_err(:), 'k', 'filled');
-hold on;
-plot(n_comp_options, mean(BCV_err), 'b', 'LineWidth', 1);
-xticks(n_comp_options);
-xlabel('Number of NMF components');
-ylabel('Reconstruction error');
-title('NMF parameter selection using cross-validation');
+% n_comp_options = 1:18;
+% 
+% data2use_ds = data2use(1:20:end, :);
+% BCV_err = nnmf_k_ver(exp(data2use_ds), round(size(data2use_ds) / 10), 10, ...
+%     n_comp_options(1), n_comp_options(end), [], 500000);
+% 
+% figure;
+% scatter(reshape(repmat(n_comp_options, size(BCV_err, 1), 1), [], 1), BCV_err(:), 'k', 'filled');
+% hold on;
+% plot(n_comp_options, mean(BCV_err), 'b', 'LineWidth', 1);
+% xticks(n_comp_options);
+% xlabel('Number of NMF components');
+% ylabel('Reconstruction error');
+% title('NMF parameter selection using cross-validation');
 
 %% Do NNMF
 
@@ -149,7 +156,8 @@ title(sprintf('NMF reconstruction of %s on %s (log space)', chans{kC}, recs{kP})
 
 % plausible #s of clusters - at least 4, maybe as many as ~10? Could be higher if several are
 % qualitatively similar (may be multiple "clusters" for a single "class")
-ncs = 4:10;
+% ncs = 4:10;
+ncs = 6;
 n_ncs = length(ncs);
 
 models = cell(length(n_ncs), 1);
@@ -160,12 +168,12 @@ for kK = 1:n_ncs
         'Options', opts);
 end
 
-AICs = cellfun(@(m) m.AIC, models);
-figure;
-plot(ncs, AICs);
-xlabel('# of clusters');
-ylabel('AIC value');
-title('GMM model selection (Akaike information criterion)');
+% AICs = cellfun(@(m) m.AIC, models);
+% figure;
+% plot(ncs, AICs);
+% xlabel('# of clusters');
+% ylabel('AIC value');
+% title('GMM model selection (Akaike information criterion)');
 
 %% Looks like 6 clusters may be a good tradeoff - take a look at it
 
@@ -270,7 +278,6 @@ for kP = 1:n_paths
         end
     end
 end
-
 
 %% see the distances betwen centroids
 cent_dist = squareform(pdist(best_model.mu));

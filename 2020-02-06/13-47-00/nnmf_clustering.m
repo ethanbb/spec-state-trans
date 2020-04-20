@@ -2,23 +2,21 @@
 
 prepSR;
 
-recs = {
-    '2020-02-06/16-01-00'
-    '2020-02-06/13-47-00'
-    };
+redo_all = false; % change to true to redo everything
 
-res_paths = fullfile(results_dir, recs, 'mt_res.mat');
-n_paths = length(res_paths);
+redo_pp = false; % change to true to redo preprocessing
 
-res_mfiles = cell(n_paths, 1);
-for kP = 1:n_paths
-    res_mfiles{kP} = matfile(res_paths{kP}, 'Writable', true);
-end
+recdate = '2020-02-06';
+time = '13-47-00';
 
-mt_opts = res_mfiles{1}.options; % necessary due to MatFile quirk
+res_path = fullfile(results_dir, recdate, time, 'mt_res.mat');
+
+res_mfile = matfile(res_path, 'Writable', true);
+
+mt_opts = res_mfile.options; % necessary due to MatFile quirk
 Fw = 1 / mt_opts.winstep; % "window rate"
 
-chans = res_mfiles{1}.name;
+chans = res_mfile.name;
 chan_vnames = cellfun(@matlab.lang.makeValidName, chans, 'uni', false);
 n_chans = numel(chans);
 
@@ -26,34 +24,36 @@ n_chans = numel(chans);
 
 freq_ds_factor = 10;
 
-all_data = cell(n_chans, n_paths);
-b_nan = all_data;
+if ~isprop(res_mfile, 'pxx_pp') || redo_pp || redo_all
+    pp_options = struct;
+    pp_options.in_name = 'pxx';
+    pp_options.name = 'pxx_pp';
+    pp_options.freq_sm_type = 'med';
+    pp_options.freq_sm_span = freq_ds_factor;
+    pp_options.time_sm_type = 'exp';
+    pp_options.time_sm_span = 60;
+    pp_options.norm_type = 'log_z';
+    
+    all_data = mt_preprocess(res_mfile, pp_options);
+else
+    all_data = res_mfile.pxx_pp;
+end
+
+% concatenate and collect information needed to break back apart
+b_nan = cell(n_chans, 1);
 chan_inds = all_data;
 chan_inds_nonan = all_data;
 
-pp_options = struct;
-pp_options.in_name = 'pxx';
-pp_options.name = 'pxx_pp';
-pp_options.freq_sm_type = 'med';
-pp_options.freq_sm_span = freq_ds_factor;
-pp_options.time_sm_type = 'exp';
-pp_options.time_sm_span = 60;
-pp_options.norm_type = 'log_z';
-
 last_ind = 0;
 last_ind_nonan = 0;
-
-for kP = 1:n_paths
-    all_data(:, kP) = mt_preprocess(res_mfiles{kP}, pp_options);
     
-    for kC = 1:n_chans
-        chan_inds{kC, kP} = last_ind + (1:size(all_data{kC, kP}, 2));
-        last_ind = chan_inds{kC, kP}(end);
-        
-        b_nan{kC, kP} = any(isnan(all_data{kC, kP}));
-        chan_inds_nonan{kC, kP} = last_ind_nonan + (1:size(all_data{kC, kP}, 2)-sum(b_nan{kC, kP}));
-        last_ind_nonan = chan_inds_nonan{kC, kP}(end);
-    end
+for kC = 1:n_chans
+    chan_inds{kC} = last_ind + (1:size(all_data{kC}, 2));
+    last_ind = chan_inds{kC}(end);
+
+    b_nan{kC} = any(isnan(all_data{kC}));
+    chan_inds_nonan{kC} = last_ind_nonan + (1:size(all_data{kC}, 2)-sum(b_nan{kC}));
+    last_ind_nonan = chan_inds_nonan{kC}(end);
 end
 
 data_cat = horzcat(all_data{:}).';
@@ -61,13 +61,11 @@ b_nan_cat = horzcat(b_nan{:}).';
 
 %% Remove NaNs and take subsample of frequencies (from all chans)
 
-freq_grid = res_mfiles{1}.freq_grid;
-
+freq_grid = res_mfile.freq_grid;
 freqinds_ds = 1:freq_ds_factor:length(freq_grid);
-data_nonan_freqds = data_cat(~b_nan_cat, freqinds_ds);
-
 freq_grid_ds = freq_grid(freqinds_ds);
 
+data_nonan_freqds = data_cat(~b_nan_cat, freqinds_ds);
 data2use = data_nonan_freqds;
 
 %% Clip data below 0.1% and above 99.9% quantiles to deal with extreme outliers
@@ -118,11 +116,9 @@ title('NMF components');
 
 U_by_chan = cell(size(all_data));
 
-for kP = 1:n_paths
-    for kC = 1:n_chans
-        U_by_chan{kC, kP} = nan(length(b_nan{kC, kP}), n_comps);
-        U_by_chan{kC, kP}(~b_nan{kC, kP}, :) = U_combined(chan_inds_nonan{kC, kP}, :);
-    end
+for kC = 1:n_chans
+    U_by_chan{kC} = nan(length(b_nan{kC}), n_comps);
+    U_by_chan{kC}(~b_nan{kC}, :) = U_combined(chan_inds_nonan{kC}, :);
 end
 
 %% Plot component-space representations
@@ -180,27 +176,22 @@ cluster_probs_temp = posterior(best_model, U_combined);
 
 clusts_by_chan_temp = cell(size(all_data));
 
-for kP = 1:n_paths
-    time_grid = res_mfiles{kP}.time_grid;
-    
-    for kC = 1:n_chans
-        clusts_by_chan_temp{kC, kP} = nan(length(b_nan{kC, kP}), 1);
-        clusts_by_chan_temp{kC, kP}(~b_nan{kC, kP}, :) = assigned_clusts_temp(chan_inds_nonan{kC, kP}, :);
-    end
+
+time_grid = res_mfile.time_grid;
+
+for kC = 1:n_chans
+    clusts_by_chan_temp{kC} = nan(length(b_nan{kC}), 1);
+    clusts_by_chan_temp{kC}(~b_nan{kC}, :) = assigned_clusts_temp(chan_inds_nonan{kC}, :);
 end
 
 %% Make transition frequency and times matrices
 transmat = zeros(best_ncs);
-
-for kP = 1:n_paths
-    time_grid = res_mfiles{kP}.time_grid;
     
-    for kC = 1:n_chans
-        clusts = clusts_by_chan_temp{kC, kP};
-        for kT = 1:length(clusts)-1
-            if ~isnan(clusts(kT)) && ~isnan(clusts(kT+1))
-               transmat(clusts(kT), clusts(kT+1)) = transmat(clusts(kT), clusts(kT+1)) + 1;
-            end
+for kC = 1:n_chans
+    clusts = clusts_by_chan_temp{kC};
+    for kT = 1:length(clusts)-1
+        if ~isnan(clusts(kT)) && ~isnan(clusts(kT+1))
+           transmat(clusts(kT), clusts(kT+1)) = transmat(clusts(kT), clusts(kT+1)) + 1;
         end
     end
 end
@@ -253,24 +244,19 @@ cluster_probs = posterior(best_model, U_combined);
 [~, assigned_clusts] = max(cluster_probs, [], 2);
 
 clusts_by_chan = cell(size(all_data));
-all_transitions = cell([size(all_data), size(transmat)]);
+all_transitions = cell([length(all_data), size(transmat)]);
 
-for kP = 1:n_paths
-    time_grid = res_mfiles{kP}.time_grid;
-    
-    for kC = 1:n_chans
-        clusts_by_chan{kC, kP} = nan(length(b_nan{kC, kP}), 1);
-        clusts_by_chan{kC, kP}(~b_nan{kC, kP}, :) = assigned_clusts(chan_inds_nonan{kC, kP}, :);
-        
-        clusts = clusts_by_chan{kC, kP};
-        for kT = 1:length(clusts)-1
-            if ~isnan(clusts(kT)) && ~isnan(clusts(kT+1))
-               all_transitions{kC, kP, clusts(kT), clusts(kT+1)}(end+1) = time_grid(kT+1);
-            end
+for kC = 1:n_chans
+    clusts_by_chan{kC} = nan(length(b_nan{kC}), 1);
+    clusts_by_chan{kC}(~b_nan{kC}, :) = assigned_clusts(chan_inds_nonan{kC}, :);
+
+    clusts = clusts_by_chan{kC};
+    for kT = 1:length(clusts)-1
+        if ~isnan(clusts(kT)) && ~isnan(clusts(kT+1))
+           all_transitions{kC, clusts(kT), clusts(kT+1)}(end+1) = time_grid(kT+1);
         end
     end
 end
-
 
 %% see the distances betwen centroids
 cent_dist = squareform(pdist(best_model.mu));
@@ -280,13 +266,12 @@ set(gca, 'YDir', 'reverse');
 title('Pairwise Euclidean distances between GMM centroids');
 colorbar;
 
-%% save transitions to files for further analysis
-for kP = 1:n_paths
-    res_mfiles{kP}.freq_grid_ds = freq_grid_ds;
-    res_mfiles{kP}.gmm_centroids = mu_freqspace;
-    res_mfiles{kP}.gmm_classifications = clusts_by_chan(:, kP);
-    res_mfiles{kP}.gmm_transitions = squeeze(all_transitions(:, kP, :, :));
-end
+%% save transitions to file for further analysis
+
+res_mfile.freq_grid_ds = freq_grid_ds;
+res_mfile.gmm_centroids = mu_freqspace;
+res_mfile.gmm_classifications = clusts_by_chan;
+res_mfile.gmm_transitions = all_transitions;
 
 %% Try k-means on full state vector
 % 
@@ -307,11 +292,9 @@ end
 % 
 %     idx_by_chan = cell(size(all_data));
 % 
-%     for kP = 1:n_paths
-%         for kC = 1:n_chans
-%             idx_by_chan{kC, kP} = nan(length(b_nan{kC, kP}), 1);
-%             idx_by_chan{kC, kP}(~b_nan{kC, kP}) = idx(chan_inds_nonan{kC, kP});
-%         end
+%     for kC = 1:n_chans
+%         idx_by_chan{kC} = nan(length(b_nan{kC}), 1);
+%         idx_by_chan{kC}(~b_nan{kC}) = idx(chan_inds_nonan{kC});
 %     end
 % 
 %     AICs(kK) = sum(sumd) + 2 * numel(C);
