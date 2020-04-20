@@ -12,6 +12,8 @@
 
 * [proektlab/SpectralAnalysis](https://github.com/proektlab/SpectralAnalysis)
 
+* [proektlab/NonNegativeMatrixFactorization](https://github.com/proektlab/NonNegativeMatrixFactorization)
+
 ## Code organization
 
 * The root folder contains common functions for doing each step of the analysis, as well as the final analysis script that uses data from all recordings.
@@ -20,6 +22,6 @@
   
   * `multitaper.m` performs a multitaper time-frequency analysis.
 
-  * `change_compare_chans.m` does the rest of the analysis - PCA, extracting change velocity, finding peaks and troughs and matching them.
+  * `nnmf_clustering.m`, in each day's folder, does the rest of the analysis - preprocessing, non-negative matrix factorization, and clustering using a GMM.
 
-* Finally, once each result file has matched peaks and troughs from `change_compare_chans`, `change_extrema_comp.m` combines them and makes a histogram.
+* Finally, once each result file has a matrix of GMM state transition times from `nnmf_clustering.m`, `gmm_transition_comp.m` combines them and makes a histogram.
