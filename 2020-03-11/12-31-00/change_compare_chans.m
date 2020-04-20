@@ -22,8 +22,9 @@ res_mfile = matfile(res_file, 'Writable', true);
 mt_opts = res_mfile.options; % necessary due to MatFile quirk
 Fw = 1 / mt_opts.winstep; % "window rate"
 
-chans = res_mfile.name;
-chan_vnames = cellfun(@matlab.lang.makeValidName, chans, 'uni', false);
+chans = [2, 5];
+chan_names = {'V1', 'MC'};
+chan_vnames = cellfun(@matlab.lang.makeValidName, chan_names, 'uni', false);
 n_chans = numel(chans);
 
 %% Smooth pxx before doing PCA
@@ -33,23 +34,25 @@ smooth_fname = 'pxx_smooth';
 if redo_smooth || ~isprop(res_mfile, smooth_fname)
     
     pxx = res_mfile.pxx;
-    pxx_smooth = cell(n_chans, 1);
+    pxx_smooth = cell(size(pxx));
 
     for kC = 1:n_chans
-        chan_pxx = pxx{kC};
+        chan_pxx = pxx{chans(kC)};
 
         % smooth across frequencies with a median filter
         pxx_freqsmooth = medfilt1(chan_pxx, 40);
 
         % exponential smoothing in time:
-        smooth_span = 100; % seconds
+        smooth_span = 60; % seconds
         sm_span_samp = smooth_span * Fw;
-        kernel_samps = (1:sm_span_samp) - ceil(sm_span_samp/2);
-        tau = sm_span_samp / 6.25; % to make it match edge of Gaussian w/ 2.5 SDs on each tail
-        kernel = exp(-abs(kernel_samps)/tau);
-        kernel = kernel ./ sum(kernel);
+        decay_2t = normpdf(2.5) / normpdf(0);
+        [b_exp, a_exp] = exp_filter(sm_span_samp, decay_2t);
 
-        pxx_smooth{kC} = convn_correct(pxx_freqsmooth, kernel);    
+        % manually filter forward and backward since filtfilt can't deal with nans or matrices
+        pxx_smooth{chans(kC)} = filtfilt_segs(b_exp, a_exp, pxx_freqsmooth, res_mfile.seg_windows, 2);
+
+        % gaussian smoothing
+%         pxx_smooth{chans(kC)} = smoothdata(pxx_freqsmooth, 2, 'gaussian', sm_span_samp, 'includenan');
     end
 
     res_mfile.(smooth_fname) = pxx_smooth;
@@ -60,8 +63,20 @@ end
 plot_opts = struct;
 plot_opts.pxx_name = smooth_fname;
 plot_opts.filename = 'multitaper_sm.fig';
+plot_opts.chans = chans;
 
 plot_multitaper(res_file, plot_opts);
+
+%% Concatenate related channels along frequency axis
+
+% res_mfile.pxx_smooth_cat = {
+%     cell2mat(res_mfile.(smooth_fname)(1:3, 1))
+%     cell2mat(res_mfile.(smooth_fname)(4:6, 1))
+%     };
+%
+% chan_names = {'V1'; 'MC'};
+% chan_vnames = chan_names;
+% n_chans = numel(chan_names);
 
 %% Do PCA, just taking 10 components b/c going to decide which ones to keep visually
 
@@ -73,12 +88,12 @@ for kC = 1:n_chans
     res_name = sprintf('pxx_pca_1rec_%s', chan_vnames{kC});
     
     if ~redo_pca && isprop(res_mfile, res_name) % just load if possible
-        pc_data(kC) = res_mfile.(res_name)(kC, 1);
+        pc_data(kC) = res_mfile.(res_name)(chans(kC), 1);
     else
         pca_opts = struct;
         pca_opts.pxx_name = smooth_fname;
         pca_opts.name = res_name;
-        pca_opts.chans = kC;
+        pca_opts.chans = chans(kC);
         pca_opts.thresh_type = 'comps';
         pca_opts.thresh = total_comps;
 
@@ -122,7 +137,7 @@ for kC = 1:n_chans
     change_opts.norm_type = 'none'; % get velocity instead of speed (meaningful peaks & troughs)
     
     [change_vel{kC}, change_time] = pca_change(res_file, change_opts);
-    title(sprintf('%s PC1 velocity', chans{kC}));
+    title(sprintf('%s PC1 velocity', chan_names{kC}));
     change_fhs(kC) = gcf;
     savefig(change_fhs(kC), change_figname);
 end
@@ -188,8 +203,8 @@ else
     
     for kC = 1:n_chans
         vel_iqr = iqr(change_vel{kC});
-        ispeak{kC} = islocalmax(change_vel{kC}, 'MinProminence', 3.5 * vel_iqr);
-        istrough{kC} = islocalmin(change_vel{kC}, 'MinProminence', 3.5 * vel_iqr);
+        ispeak{kC} = islocalmax(change_vel{kC}, 'MinProminence', 3.75 * vel_iqr);
+        istrough{kC} = islocalmin(change_vel{kC}, 'MinProminence', 3.75 * vel_iqr);
     end
     
     peaks = cellfun(@(bp) change_time(bp), ispeak, 'uni', false);
@@ -225,12 +240,14 @@ end
 matched_peaks_fname = 'matched_peaks';
 matched_troughs_fname = 'matched_troughs';
 
-max_dist = 45; % dist b/w matching peak and trough in seconds
+max_dist = 30; % dist b/w matching peak and trough in seconds
 
 if ~redo_match && isprop(res_mfile, matched_peaks_fname) && isprop(res_mfile, matched_troughs_fname)
     matched_peaks = res_mfile.(matched_peaks_fname);
     matched_troughs = res_mfile.(matched_troughs_fname);
 else
+
+    res_mfile.match_max_dist = max_dist;
 
     nearest_peak_ind = cell(2, 1);
     nearest_trough_ind = cell(2, 1);
@@ -269,10 +286,16 @@ else
         nearest_trough_ind{kC}(augmented_matches(nearest_trough_ind{kC} + 1) ~= 1:n_troughs(kC)) = 0;
     end
     
+    res_mfile.num_no_match = ...
+        sum(cellfun(@(npi) sum(npi==0), nearest_peak_ind)) + ...
+        sum(cellfun(@(nti) sum(nti==0), nearest_trough_ind));
+
     % finally, get the actual times
     n_matched_peaks = sum(nearest_peak_ind{1} > 0);
     n_matched_troughs = sum(nearest_trough_ind{1} > 0);
     
+    res_mfile.num_match = n_matched_peaks * 2 + n_matched_troughs * 2;
+
     matched_peaks = zeros(2, n_matched_peaks);
     matched_troughs = zeros(2, n_matched_troughs);
     
@@ -321,8 +344,10 @@ for kT = 1:size(matched_troughs, 2)
         'm', 'LineWidth', 2);
 end
 
-ylabel(sprintf('%s     |     %s', chans{2}, chans{1}), 'FontSize', 16);
+ylabel(sprintf('%s     |     %s', chan_names{2}, chan_names{1}), 'FontSize', 16);
 
 xlabel('Time (s)');
-title(sprintf('Matched spectral change peaks and troughs (%s_%s)', recdate, time), 'Interpreter', 'none');
+pct_matched = res_mfile.num_match / (res_mfile.num_no_match + res_mfile.num_match) * 100;
+title(sprintf('Matched spectral change peaks and troughs, %.0f%% matched (%s_%s)',...
+    pct_matched, recdate, time), 'Interpreter', 'none');
 savefig('matched_change.fig');

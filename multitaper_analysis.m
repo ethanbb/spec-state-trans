@@ -4,11 +4,14 @@ function res = multitaper_analysis(data_s, options)
 % Hudson et al., 2014
 %
 % data_s = struct from loading the raw dataset
-% options = struct with overrides of the following defaults:
+% options = struct with overrides of the defaults below
 %
 % If there are artifacts specified, the outputs pxx and phase (if
 % requested) will have NaNs at timepoints that would be affected by the
 % artifact.
+%
+% Returns a struct of results if options.save == false,
+% or a MatFile object of the saved file if options.save == true;
 
 %---------- organize data ----------%
 
@@ -184,7 +187,10 @@ if opts.save
         end
     end
 
-    save(fullfile(opts.savedir, opts.filename), '-struct', 'res', '-v7.3');
+    filepath = fullfile(opts.savedir, opts.filename);
+    save(filepath, '-struct', 'res', '-v7.3');
+
+    res = matfile(filepath);
 end
 
 end

@@ -28,36 +28,6 @@ chans = res_mfile.name;
 chan_vnames = cellfun(@matlab.lang.makeValidName, chans, 'uni', false);
 n_chans = numel(chans);
 
-%% Smooth pxx before doing PCA
-
-smooth_fname = 'pxx_smooth';
-
-if redo_smooth || ~isprop(res_mfile, smooth_fname)
-
-    pxx = res_mfile.pxx;
-    pxx_smooth = cell(size(pxx));
-
-    for kC = 1:n_chans
-        chan_pxx = pxx{kC};
-
-        % smooth across frequencies with a median filter
-        pxx_freqsmooth = medfilt1(chan_pxx, 40);
-
-        % exponential smoothing in time:
-        smooth_span = 60; % seconds
-        sm_span_samp = smooth_span * Fw;
-        decay_2t = normpdf(2.5) / normpdf(0);
-        [b_exp, a_exp] = exp_filter(sm_span_samp, decay_2t);
-
-        % manually filter forward and backward since filtfilt can't deal with nans or matrices
-        pxx_smooth{kC} = filtfilt_segs(b_exp, a_exp, pxx_freqsmooth, res_mfile.seg_windows, 2);
-
-        % gaussian smoothing
-%         pxx_smooth{kC} = smoothdata(pxx_freqsmooth, 2, 'gaussian', sm_span_samp, 'includenan');
-    end
-
-    res_mfile.(smooth_fname) = pxx_smooth;
-end
 
 %% Do PCA, just taking 10 components b/c going to decide which ones to keep visually
 
@@ -72,7 +42,7 @@ for kC = 1:n_chans
         pc_data(kC) = res_mfile.(res_name)(kC, 1);
     else
         pca_opts = struct;
-        pca_opts.pxx_name = smooth_fname;
+        pca_opts.pxx_name = 'pxx_pp';
         pca_opts.name = res_name;
         pca_opts.chans = kC;
         pca_opts.thresh_type = 'comps';
@@ -150,7 +120,7 @@ else
 end
 
 %% Actually just use the component with highest variance:
-comps2use = repmat({1}, n_chans, 1);
+% comps2use = repmat({1}, n_chans, 1);
 
 %% Compute change velocity for each channel using pca_change
 
