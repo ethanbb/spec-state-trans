@@ -6,7 +6,7 @@ function res_data = mt_preprocess(data_or_filename, options)
 %  * a mt_res filename, in which case results are loaded from and saved to the file
 %    and the cell of processed spectrograms is returned.
 %  * a MatFile object, which is treated the same as a filename after loading
-%  * a struct, in which case results are takend from the field $in_name and saved to $name,
+%  * a struct, in which case results are taken from the field $in_name and saved to $name,
 %    and the whole updated struct is returned.
 %
 % Valid normalization types:
@@ -18,7 +18,7 @@ function res_data = mt_preprocess(data_or_filename, options)
 
 % Load as MatFile object if a filename
 if ischar(data_or_filename)
-    res_data = matfile(data_or_filename);
+    res_data = matfile(data_or_filename, 'Writable', true);
 else
     res_data = data_or_filename;
 end
@@ -33,7 +33,8 @@ opts = struct(...
     'time_sm_type',     'exp',      ... type of temporal smoothing - same options as freq_sm_type
     'time_sm_span',     60,         ... span of temporal smoothing, in seconds
     'frac_power',       false,      ... whether to divide by total power across frequencies at each time
-    'norm_type',        'log_z'     ... type of normalization - see header comment
+    'norm_type',        'log_z',    ... type of normalization - see header comment
+    'save',             true        ... make false to not save to mat file (just return result)
     );
 
 if nargin < 2 || isempty(options)
@@ -92,11 +93,21 @@ for kC = 1:n_chans
     end   
 end
 
-res_data.(opts.name) = pxx_pp;
+if opts.save
+    try        
+        res_data.(opts.name) = pxx_pp;
+    catch me
+        if strcmp(me.identifier, 'MATLAB:MatFile:ObjectNotWritable')
+            warning('MatFile is not writable - just returning preprocessed results');
+        else
+            rethrow(me);
+        end
+    end
+end
 
 % if we're not dealing with a struct, just return the preprocessed results
 if ~isstruct(data_or_filename)
-    res_data = res_data.(opts.name);
+    res_data = pxx_pp;
 end
 
 end

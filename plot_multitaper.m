@@ -18,6 +18,7 @@ predef_labels = struct(...
 opts = struct(...
     'pxx_name',  'pxx_pp',               ... fieldname (within result) of data to plot, or cell to plot multiple
     'take_log',  false,                  ... logical array same size as pxx_name of whether to take log first
+    'clim',      [],                     ... color limits (default = automatic)
     'label',     [],                     ... label for each field (entry of pxx_name)
     'chans',     'all',                  ... which channels, of those analyzed, to plot
     'save',      false,                  ... whether to save the figure
@@ -108,20 +109,22 @@ h_ax = gobjects(n_chans, n_fields);
 for kC = 1:n_chans
     for kF = 1:n_fields
         h_ax(kC, kF) = subplot(n_chans, n_fields, (kC-1)*n_fields + kF);
-        newplot;
 
         this_pxx = pxx{kC, kF};
         if opts.take_log(kF)
             this_pxx = 10*log10(this_pxx);
         end
 
-        newplot;
-        surface(result.time_grid, result.freq_grid, this_pxx, 'EdgeColor', 'none');
+        sanePColor(result.time_grid, result.freq_grid, this_pxx, false, true);
         set(gca, 'YScale', 'log');
+        set(gca, 'Interactions', regionZoomInteraction); % dataTipInteraction causes lots of lag
+        if ~isempty(opts.clim)
+            set(gca, 'CLim', opts.clim);
+        end
         axis tight;
         xlabel('Time (s)');
         ylabel('Frequency (Hz)');
-        title(sprintf('%s in %s', opts.label{kF}, chan_names{kC}));
+        title(sprintf('%s in %s', opts.label{kF}, chan_names{kC}), 'Interpreter', 'none');
     end
 end
 
