@@ -155,6 +155,7 @@ if opts.save
         mfile = matfile(result_files{kF}, 'Writable', true');
         mfile.(opts.name) = cell(nchans_orig(kF), 1);
         mfile.(opts.name)(opts.chans{kF}, 1) = pc_data_all{kF};
+        mfile.([opts.name, '_coeff']) = coeff(:, 1:num2keep);
         mfile.([opts.name, '_opts']) = opts;
     end
 end
