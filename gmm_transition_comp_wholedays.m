@@ -26,7 +26,8 @@ total_trans = 0;
 total_matched = 0;
 
 for kR = 1:n_recs
-    res = matfile(fullfile(results_dir, recs{kR}, 'mt_res.mat'));
+    res_mfile = matfile(fullfile(results_dir, recs{kR}, 'mt_res.mat'));
+    res = res_mfile.whole_day;
     
     trans = res.gmm_transitions;
     n_classes = size(trans, 2);
