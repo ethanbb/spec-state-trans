@@ -20,33 +20,24 @@ options.artifacts = [
     5050, len_secs % (to end of recording)
     ];
 
-% chans based on 13-15-00 CSD:
-options.chans = [9, 39];
-options.chan_names = {'V1', 'MC'};
+% % chans based on 13-15-00 CSD:
+% options.chans = [9, 39];
+% options.chan_names = {'V1', 'MC'};
+
+% 4 channels each in V1 and MC (spread out)
+% artifact in chan 54 @ 270-272
+options.chans = [6, 11, 22, 28, 38, 43, 55, 60];
+options.chan_names = {'V1 super', 'V1 mid-super', 'V1 mid-deep', 'V1 deep', ...
+                      'MC super', 'MC mid-super', 'MC mid-deep', 'MC deep'};
 
 options.save = false;
 
 mt_res_lores = multitaper_analysis(data_s, options);
 
-%% preprocess
-
-pp_options = struct;
-pp_options.name = 'pxx_pp';
-pp_options.freq_sm_type = 'med';
-pp_options.freq_sm_span = 40;
-pp_options.time_sm_type = 'exp';
-pp_options.time_sm_span = 60;
-pp_options.norm_type = 'log_z';
-
-mt_res_lores = mt_preprocess(mt_res_lores, pp_options);
-
-%% plot & save lo-res
-
+% plot to check
 plot_options = struct;
-plot_options.pxx_name = 'pxx_pp';
-plot_options.save = true;
-plot_options.savedir = savedir;
-plot_options.filename = 'multitaper_lores.fig';
+plot_options.pxx_name = 'pxx';
+plot_options.take_log = true;
 
 plot_multitaper(mt_res_lores, plot_options);
 

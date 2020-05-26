@@ -4,3 +4,6 @@
 # autosave
 *~
 *.asv
+
+# Windows crap
+**/Thumbs.db

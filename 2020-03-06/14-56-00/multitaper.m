@@ -15,22 +15,28 @@ len_secs = size(data_s.meanSubFullTrace, 2) / data_s.finalSampR;
 
 options = struct;
 options.artifacts = [
+    5454, 5455
     6324, 6326
     ];
 
-% chans based on 17-00-00 CSD:
-options.chans = [22, 45];
-options.chan_names = {'V1', 'MC'};
+% % chans based on 17-00-00 CSD:
+% % channel 25 is broken
+% options.chans = [22, 45];
+% options.chan_names = {'V1', 'MC'};
 
+% 4 channels each in V1 and MC (spread out)
+options.chans = [6, 11, 22, 28, 38, 43, 54, 60];
+options.chan_names = {'V1 super', 'V1 mid-super', 'V1 mid-deep', 'V1 deep', ...
+                      'MC super', 'MC mid-super', 'MC mid-deep', 'MC deep'};
+                  
 options.save = false;
 
 mt_res_lores = multitaper_analysis(data_s, options);
 
-%% plot & save lo-res
-
+% plot to check
 plot_options = struct;
-plot_options.savedir = savedir;
-plot_options.filename = 'multitaper_lores.fig';
+plot_options.pxx_name = 'pxx';
+plot_options.take_log = true;
 
 plot_multitaper(mt_res_lores, plot_options);
 

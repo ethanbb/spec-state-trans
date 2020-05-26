@@ -23,19 +23,23 @@ options.artifacts = [
     6109, 6111
 ];
 
-% chans based on 16-33-00 CSD:
-options.chans = [18, 56];
-options.chan_names = {'V1', 'MC'};
+% % chans based on 16-33-00 CSD:
+% options.chans = [18, 56];
+% options.chan_names = {'V1', 'MC'};
 
+% 4 channels each in V1 and MC (spread out)
+options.chans = [6, 11, 22, 28, 38, 43, 54, 60];
+options.chan_names = {'V1 super', 'V1 mid-super', 'V1 mid-deep', 'V1 deep', ...
+                      'MC super', 'MC mid-super', 'MC mid-deep', 'MC deep'};
+                  
 options.save = false;
 
 mt_res_lores = multitaper_analysis(data_s, options);
 
-%% plot & save lo-res
-
+% plot to check
 plot_options = struct;
-plot_options.savedir = savedir;
-plot_options.filename = 'multitaper_lores.fig';
+plot_options.pxx_name = 'pxx';
+plot_options.take_log = true;
 
 plot_multitaper(mt_res_lores, plot_options);
 
