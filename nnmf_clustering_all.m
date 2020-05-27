@@ -209,7 +209,7 @@ for kR = 1:n_recs
     %% Compute and plot conditional entropy
     
     cond_ent = class_cond_entropy(classes);
-    figure;
+    h1 = figure;
     sanePColor(cond_ent);
     set(gca, 'YDir', 'reverse');
     xticks(1:n_chans);
@@ -217,18 +217,37 @@ for kR = 1:n_recs
     xtickangle(45);
     yticks(1:n_chans);
     yticklabels(chans);
-    ylabel('R1');
-    xlabel('R2');
+    ylabel('E1');
+    xlabel('E2');
     c = colorbar;
     c.Label.String = 'Entropy (bits)';
     
-    title(sprintf('Conditional entropy of R2 class given R1 class (%s)', rec));
+    title(sprintf('Conditional entropy of E2 classes given E1 classes (%s)', rec));
+    savefig(h1, fullfile(results_dir, rec, 'cond_ent.fig'));
+    
+    %% Compute and plot mutual information
+    
+    mut_info = class_mut_info(classes);
+    h2 = figure;
+    sanePColor(mut_info);
+    set(gca, 'YDir', 'reverse');
+    xticks(1:n_chans);
+    xticklabels(chans);
+    xtickangle(45);
+    yticks(1:n_chans);
+    yticklabels(chans);
+    c = colorbar;
+    c.Label.String = 'Information (bits)';
+    
+    title(sprintf('Mutual information of classes between electrodes (%s)', rec));
+    savefig(h2, fullfile(results_dir, rec, 'mut_info.fig'));
     
     %% Save to the matfile
     res_mfile.rank_U = U_all;
     res_mfile.rank_V = V_all;
     res_mfile.rank_classes = classes;
     res_mfile.rank_cond_ent = cond_ent;
+    res_mfile.rank_mut_info = mut_info;
 end
 
 function [n_comps, hfig] = nmf_ncomps_xval(data, min_comps, max_comps, pow_thresh)

@@ -49,7 +49,30 @@ c.Label.String = 'Entropy (bits)';
 
 title('Median conditional entropy of R2 given R1');
 
-%% Collect conditional entropy entries of each type
+%% Repeat above for mutual information
+
+mut_info_cell = cellfun(@(mf) mf.rank_mut_info, res_mfiles, 'uni', false);
+mut_infos = cat(3, mut_info_cell{:});
+med_mut_info = median(mut_infos, 3);
+
+chans = res_mfiles{1}.name;
+n_chans = length(chans);
+
+figure;
+sanePColor(med_mut_info);
+set(gca, 'YDir', 'reverse');
+xticks(1:n_chans);
+xticklabels(chans);
+xtickangle(45);
+yticks(1:n_chans);
+yticklabels(chans);
+c = colorbar;
+c.Label.String = 'Information (bits)';
+
+title('Median mutual information of classes');
+
+
+%% Collect mutual information entries of each type
 
 types = {'Same channel', 'Near depth', 'Far depth', 'Cross-region'};
 type_snames = cellfun(@matlab.lang.makeValidName, types, 'uni', false);
@@ -60,20 +83,20 @@ linear_inds{2} = linear_inds{1} + repmat([1; -1], 4, 1);
 linear_inds{3} = sort([linear_inds{1}; linear_inds{2}]) + repmat([repmat(2, 4, 1); repmat(-2, 4, 1)], 2, 1);
 linear_inds{4} = find((1:8)' > 4 & 1:8 <= 4 | (1:8)' <= 4 & 1:8 > 4);
 
-cent_by_type = struct;
+minf_by_type = struct;
 rec_vec = (0:n_recs-1) * 64;
 
 for kT = 1:4
-    cent_by_type.(type_snames{kT}) = squeeze(cellfun(@(mat) median(mat(linear_inds{kT})), num2cell(cond_ents, [1 2])));
+    minf_by_type.(type_snames{kT}) = squeeze(cellfun(@(mat) median(mat(linear_inds{kT})), num2cell(mut_infos, [1 2])));
     
 %     type_inds = reshape(linear_inds{kT} + rec_vec, [], 1);
 %     cent_by_type.(type_snames{kT}) = cond_ents(type_inds);
 end
 
 figure;
-viol = violinplot(cent_by_type);
+viol = violinplot(minf_by_type);
 xticklabels(types);
-ylabel('Conditional entropy (bits)');
+ylabel('Mutual information (bits)');
 
 colors = lines(5);
 colors(3,:) = []; % skip 3rd since its yellow blends w/ parula colormap
@@ -91,13 +114,13 @@ curr_labels = get(gca, 'YTickLabel');
 yticks([curr_ticks(1:end-1), log2(n_classes)]);
 yticklabels([curr_labels(1:end-1); {'max'}]);
 
-title('Conditional entropy by pair type across recordings');
+title('Mutual information by pair type across recordings');
 
 %% Do nonparametric stats
 
-p1 = ranksum(cent_by_type.SameChannel, cent_by_type.NearDepth);
-p2 = ranksum(cent_by_type.NearDepth, cent_by_type.FarDepth);
-p3 = ranksum(cent_by_type.FarDepth, cent_by_type.Cross_region);
+p1 = ranksum(minf_by_type.SameChannel, minf_by_type.NearDepth);
+p2 = ranksum(minf_by_type.NearDepth, minf_by_type.FarDepth);
+p3 = ranksum(minf_by_type.FarDepth, minf_by_type.Cross_region);
 
 %% Conditional entropy vs. distance
 
@@ -105,6 +128,7 @@ elec_dist = 20; % in um
 
 dists = zeros(numel(cond_ents) / 2 - n_recs * 8, 1);
 cents = dists;
+minfs = dists;
 
 count = 0;
 for kR = 1:n_recs
@@ -121,6 +145,7 @@ for kR = 1:n_recs
             count = count + 1;
             dists(count) = elec_dist * abs(res_opts.chans(k1) - res_opts.chans(k2));
             cents(count) = cond_ents(k1, k2, kR);
+            minfs(count) = mut_infos(k1, k2, kR);
         end
     end
 end
@@ -139,9 +164,11 @@ for kR = 1:n_recs
     classes = res_mfiles{kR}.rank_classes;
     for kC = 1:n_classes
         pC = sum(classes == kC) / size(classes, 1);
-        if pC > 0
-            entropies(kR, :) = entropies(kR, :) - pC .* log2(pC);
-        end
+        new_entropies = entropies(kR, :) - pC .* log2(pC);
+        
+        % avoid nans
+        bUpdate = pC > 0;        
+        entropies(kR, bUpdate) = new_entropies(bUpdate);
     end
 end
 
@@ -181,12 +208,12 @@ end
 
 max_dist = 60; % max dist b/w matching transitions in seconds
 
-rec_matches = cell(1, n_recs);
+rec_matches = cell(n_classes, n_recs);
 total_trans = 0;
 total_matched = 0;
 
 for kR = 1:n_recs
-    chan_pair_matches = cell(1, 16);
+    chan_pair_matches = cell(n_classes, 16);
     for c1 = 1:4
         for c2 = 5:8
             
@@ -238,13 +265,15 @@ for kR = 1:n_recs
                     k_matches{kK}(kC, :) = to_trans{kC, kK}(nearest_trans{3-kC}(nearest_trans{3-kC} > 0));
                 end
             end
-            chan_pair_matches{(c1-1)*4 + (c2-4)} = cell2mat(k_matches);
+            chan_pair_matches(:, (c1-1)*4 + (c2-4)) = k_matches;
         end
     end
-            
-    rec_matches{kR} = cell2mat(chan_pair_matches);
+    
+    for kK = 1:n_classes
+        rec_matches{kK, kR} = cell2mat(chan_pair_matches(kK,:));
+    end
 end
-all_matches = cell2mat(rec_matches);
+all_matches = horzcat(rec_matches{:});
 match_diffs = -diff(all_matches);
 
 figure;
@@ -265,5 +294,78 @@ box off;
 linkaxes([h1, h2], 'x');
 
 % Wilcoxon signed rank test:
-[p, h, stats] = signrank(match_diffs);
+%[p, h, stats] = signrank(match_diffs);
 
+%% Look at differences across symmetric bins
+
+figure;
+lags = sort(match_diffs(match_diffs >= 0));
+leads = sort(-match_diffs(match_diffs < 0));
+
+h1 = plot(lags, 1:length(lags), 'b', 'LineWidth', 1.5);
+hold on;
+h2 = plot(leads, 1:length(leads), 'r', 'LineWidth', 1.5);
+
+xlim([0, max(abs(match_diffs))]);
+xlabel('Absolute timing difference (s)');
+ylabel('Cumulative count');
+legend([h1, h2], 'MC lags', 'MC leads', 'Location', 'northwest');
+
+%% Bootstrap to get bounds on above figure
+
+n_trans = length(match_diffs);
+n_boot = 10000;
+x_axis = 0:0.1:60;
+
+lag_results = zeros(n_boot, length(x_axis));
+lead_results = lag_results;
+
+for kB = 1:n_boot
+    sample = match_diffs(randi(n_trans, 1, n_trans));
+    
+    lags = sort(sample(sample >= 0));
+    leads = sort(-sample(sample < 0));
+    
+    yvals_lag = 1:length(lags);
+    % remove non-unique x points for interp1
+    b_rem = lags == [lags(2:end), nan];
+    lags = lags(~b_rem);
+    yvals_lag = yvals_lag(~b_rem);
+    
+    yvals_lead = 1:length(leads);
+    % remove non-unique x points for interp1
+    b_rem = leads == [leads(2:end), nan];
+    leads = leads(~b_rem);
+    yvals_lead = yvals_lead(~b_rem);
+    
+    lag_results(kB, :) = interp1(lags, yvals_lag, x_axis);
+    lead_results(kB, :) = interp1(leads, yvals_lead, x_axis);
+end
+
+hold on
+h = area(x_axis, [min(lag_results)', (max(lag_results)-min(lag_results))']);
+for kH = 1:2
+    h(kH).EdgeColor = 'b';
+    h(kH).LineStyle = '--';
+    h(kH).FaceColor = 'b';
+    h(kH).ShowBaseLine = false;
+end
+h(1).FaceAlpha = 0;
+h(2).FaceAlpha = 0.3;
+
+h = area(x_axis, [min(lead_results)', (max(lead_results)-min(lead_results))']);
+for kH = 1:2
+    h(kH).EdgeColor = 'r';
+    h(kH).LineStyle = '--';
+    h(kH).FaceColor = 'r';
+    h(kH).ShowBaseLine = false;
+end
+h(1).FaceAlpha = 0;
+h(2).FaceAlpha = 0.3;
+
+% plot(x_axis, max(lag_results), 'b--');
+% plot(x_axis, min(lag_results), 'b--');
+% plot(x_axis, max(lead_results), 'r--');
+% plot(x_axis, min(lead_results), 'r--');
+legend([h1, h2], 'MC lags', 'MC leads', 'Location', 'northwest');
+title('MC state transitions lagging or leading V1, by spread');
