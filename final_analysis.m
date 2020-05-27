@@ -116,7 +116,7 @@ yticklabels([curr_labels(1:end-1); {'max'}]);
 
 title('Mutual information by pair type across recordings');
 
-%% Do nonparametric stats
+%% Do nonparametric stats (mutual info)
 
 p1 = ranksum(minf_by_type.SameChannel, minf_by_type.NearDepth);
 p2 = ranksum(minf_by_type.NearDepth, minf_by_type.FarDepth);
