@@ -75,7 +75,8 @@ viol = violinplot(cent_by_type);
 xticklabels(types);
 ylabel('Conditional entropy (bits)');
 
-colors = lines(4);
+colors = lines(5);
+colors(3,:) = []; % skip 3rd since its yellow blends w/ parula colormap
 for kT = 1:4
     viol(kT).ViolinColor = colors(kT, :);
 end
