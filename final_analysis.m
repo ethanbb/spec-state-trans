@@ -21,7 +21,7 @@ recs = {
     };
 
 n_recs = length(recs);
-res_mfiles = cellfun(@(r) matfile(fullfile(results_dir, r, 'mt_res.mat')), recs, 'uni', false);
+res_mfiles = cellfun(@(r) matfile(fullfile(results_dir, r, 'mt_res.mat'), 'Writable', true), recs, 'uni', false);
 
 n_classes = 6;
 
@@ -74,8 +74,9 @@ title('Median mutual information of classes');
 
 %% Collect mutual information entries of each type
 
-types = {'Same channel', 'Near depth', 'Far depth', 'Cross-region'};
+types = {'Same channel', 'Near depth', 'Far depth', 'Cross-region', sprintf('Cross-region\nshuffled')};
 type_snames = cellfun(@matlab.lang.makeValidName, types, 'uni', false);
+n_types = length(types);
 
 linear_inds = {};
 linear_inds{1} = find(eye(8));
@@ -93,14 +94,30 @@ for kT = 1:4
 %     cent_by_type.(type_snames{kT}) = cond_ents(type_inds);
 end
 
+% make shuffled mutual information (of cross-region pairs)
+minf_by_type.(type_snames{end}) = zeros(n_recs, 1);
+for kR = 1:n_recs
+    classes = res_mfiles{kR}.rank_classes;
+    
+    % shuffle each channel independently
+    res_mfiles{kR}.shuffle_state = rng('shuffle');
+    n_times = size(classes, 1);
+    for kC = 1:n_chans
+        classes(:, kC) = classes(randperm(n_times), kC);
+    end
+    
+    minfo = class_mut_info(classes);
+    minf_by_type.(type_snames{end})(kR) = median(minfo(linear_inds{4}));
+end
+
 figure;
 viol = violinplot(minf_by_type);
-xticklabels(types);
+xticklabels(strrep(types, newline, '\newline'));
 ylabel('Mutual information (bits)');
 
-colors = lines(5);
-colors(3,:) = []; % skip 3rd since its yellow blends w/ parula colormap
-for kT = 1:4
+colors = lines(7);
+colors([3, 6],:) = []; % skip 3rd and 6th since they conflict with other colors
+for kT = 1:n_types
     viol(kT).ViolinColor = colors(kT, :);
 end
 
@@ -113,14 +130,16 @@ curr_ticks = get(gca, 'YTick');
 curr_labels = get(gca, 'YTickLabel');
 yticks([curr_ticks(1:end-1), log2(n_classes)]);
 yticklabels([curr_labels(1:end-1); {'max'}]);
+ylim([0, 3]);
 
 title('Mutual information by pair type across recordings');
 
 %% Do nonparametric stats (mutual info)
 
-p1 = ranksum(minf_by_type.SameChannel, minf_by_type.NearDepth);
-p2 = ranksum(minf_by_type.NearDepth, minf_by_type.FarDepth);
-p3 = ranksum(minf_by_type.FarDepth, minf_by_type.Cross_region);
+[p1, ~, stats1] = ranksum(minf_by_type.SameChannel, minf_by_type.NearDepth);
+[p2, ~, stats2] = ranksum(minf_by_type.NearDepth, minf_by_type.FarDepth);
+[p3, ~, stats3] = ranksum(minf_by_type.FarDepth, minf_by_type.Cross_region);
+[p4, ~, stats4] = ranksum(minf_by_type.Cross_region, minf_by_type.Cross_regionShuffled);
 
 %% Conditional entropy vs. distance
 
