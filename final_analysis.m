@@ -24,6 +24,7 @@ n_recs = length(recs);
 res_mfiles = cellfun(@(r) matfile(fullfile(results_dir, r, 'mt_res.mat'), 'Writable', true), recs, 'uni', false);
 
 n_classes = 6;
+n_chans = 8;
 
 %% Compile conditional entropy results
 
@@ -32,7 +33,6 @@ cond_ents = cat(3, cond_ent_cell{:});
 med_cond_ent = median(cond_ents, 3);
 
 chans = res_mfiles{1}.name;
-n_chans = length(chans);
 
 figure;
 sanePColor(med_cond_ent);
@@ -56,7 +56,6 @@ mut_infos = cat(3, mut_info_cell{:});
 med_mut_info = median(mut_infos, 3);
 
 chans = res_mfiles{1}.name;
-n_chans = length(chans);
 
 figure;
 sanePColor(med_mut_info);
