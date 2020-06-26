@@ -23,7 +23,7 @@ recs = {
 n_recs = length(recs);
 
 %% Loop through recordings
-for kR = 1:n_recs    
+for kR = 1:n_recs % 1:n_recs    
     %% Get dataset info
     rec = recs{kR};
 
@@ -87,7 +87,10 @@ for kR = 1:n_recs
             figure(hfig);
             title(sprintf('NMF cross-validation (%s, %s)', rec, chans{kC}));        
             savefig(hfig, fullfile(results_dir, rec, ['nmf_xval_', chan_vnames{kC}, '.fig']));
-            res_mfile.(['nmf_comps_', chan_vnames{kC}]) = n_comps;        
+            res_mfile.(['nmf_comps_', chan_vnames{kC}]) = n_comps;
+            
+            %%
+            close(hfig);
         end
         
         %% Do NMF on full dataset
@@ -120,30 +123,30 @@ for kR = 1:n_recs
         
         %% plot components, component-space representation and reconstruction
         
-        % plot components
-        figure;
-        sanePColor(1:n_comps, freq_axis, U, false, true);
-        set(gca, 'YScale', 'log');
-        xticks(1:n_comps);
-        xlabel('Component #');
-        ylabel('Frequency (Hz)');
-        title(sprintf('NMF components (%s, %s)', chans{kC}, rec));
+%         % plot components
+%         figure;
+%         sanePColor(1:n_comps, freq_axis, U, false, true);
+%         set(gca, 'YScale', 'log');
+%         xticks(1:n_comps);
+%         xlabel('Component #');
+%         ylabel('Frequency (Hz)');
+%         title(sprintf('NMF components (%s, %s)', chans{kC}, rec));
 
-        % plot representation
-        figure;
-        sanePColor(time_axis, 1:n_comps, V.');
-        xlabel('Time (s)');
-        yticks(1:n_comps);
-        ylabel('Component #');
-        title(sprintf('NMF component representation of %s on %s', chans{kC}, rec));
-        
-        % plot reconstruction
-        figure;
-        sanePColor(time_axis, freq_axis, U * V', false, true);
-        set(gca, 'YScale', 'log');
-        xlabel('Time (s)');
-        ylabel('Frequency (Hz)');
-        title(sprintf('NMF reconstruction of %s on %s (rank)', chans{kC}, rec));
+%         % plot representation
+%         figure;
+%         sanePColor(time_axis, 1:n_comps, V.');
+%         xlabel('Time (s)');
+%         yticks(1:n_comps);
+%         ylabel('Component #');
+%         title(sprintf('NMF component representation of %s on %s', chans{kC}, rec));
+%         
+%         % plot reconstruction
+%         figure;
+%         sanePColor(time_axis, freq_axis, U * V', false, true);
+%         set(gca, 'YScale', 'log');
+%         xlabel('Time (s)');
+%         ylabel('Frequency (Hz)');
+%         title(sprintf('NMF reconstruction of %s on %s (rank)', chans{kC}, rec));
 
     end  
     %% Save to the matfile

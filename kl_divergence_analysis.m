@@ -70,7 +70,7 @@ for kR = 1:n_recs
             kmin = min(ki, kj);
             
             % fmincon problem parameters
-            fn = @(X) cross_entropy(Vi, Vj, X);
+            fn = @(X) cross_ent_fn(Vi, Vj, X);
             x0 = ones(ki, kj) / kj;
             x0(1:kmin, 1:kmin) = 0.8*eye(kmin)*kmin/kj + 0.2*ones(kmin)/kj; % a bit arbitrary
             Aeq = repmat(eye(ki), 1, kj); % restricts each row to sum to 1
@@ -81,11 +81,51 @@ for kR = 1:n_recs
             
             Xs{iC, jC} = fmincon(fn, x0, [], [], Aeq, beq, lb, ub, [], optimopts);
             
-            kl_div(iC, jC) = mean_kl_div(Vi, Vj, Xs{iC, jC});
+            kl_div(iC, jC) = kl_div_fn(Vi, Vj, Xs{iC, jC});
         end
     end
     
     %% Save
     res_mfile.kl_Xs = Xs;
-    res_mfile.kl_divs = kl_divs;
+    res_mfile.kl_divs = kl_div;
+    
+    %% Plot KL divergence
+    hf = plot_kldiv_mat(kl_div, chans, rec);    
+    savefig(hf, fullfile(results_dir, rec, 'score_DKL.fig'));
+end
+
+%% Get and plot median KL divergence for each channel pair (here still assuming V1 super...etc. labels are comparable)
+
+all_kl_divs = zeros(n_chans, n_chans, n_recs);
+for kR = 1:n_recs
+    res_mfile = matfile(fullfile(results_dir, recs{kR}, 'mt_res.mat'));
+    all_kl_divs(:, :, kR) = res_mfile.kl_divs;
+end
+
+med_kl_divs = median(all_kl_divs, 3);
+hf = plot_kldiv_mat(med_kl_divs, chans, sprintf('Median over %d recordings', n_recs));
+savefig(hf, fullfile(results_dir, 'res_figs', 'med_kl_div.fig'));
+
+%%
+function hf = plot_kldiv_mat(kl_div, chans, title_line2)
+
+hf = figure;
+sanePColor(kl_div);
+set(gca, 'YDir', 'reverse');
+
+title_line1 = 'NMF score KL divergence - $$\min_X \mathbf{E}[D_{KL}(V_j || V_iX)]$$';
+if nargin < 3 || isempty(title_line2)
+    title(title_line1, 'Interpreter', 'latex');
+else
+    title({title_line1, title_line2}, 'Interpreter', 'latex');
+end
+
+xticks(1:length(chans));
+xticklabels(chans);
+xtickangle(45);
+yticks(1:length(chans));
+yticklabels(chans);
+
+ylabel('Channel i');
+xlabel('Channel j');
 end
