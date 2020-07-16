@@ -186,6 +186,7 @@ for kD = 1:n_days
         end
     end  
     %% Save to the matfile
+    save_mfile.chan_names = chans;
     save_mfile.nmf_U = U_all;
     save_mfile.nmf_V = V_all;
     save_mfile.nmf_classes = classes_all;
