@@ -127,10 +127,10 @@ types = {'Same channel', 'Same region', 'Cross-region'};
 type_snames = cellfun(@matlab.lang.makeValidName, types, 'uni', false);
 n_types = length(types);
 
-linear_inds = {};
+linear_inds = cell(n_types, 1);
 linear_inds{1} = find(eye(n_chans));
 linear_inds{2} = find(blkdiag(ones(n_chans/2), ones(n_chans/2)) - eye(n_chans));
-linear_inds{3} = setdiff(1:n_chans^2, [linear_inds{1}; linear_inds{2}]);
+linear_inds{end} = setdiff(1:n_chans^2, vertcat(linear_inds{1:end-1}));
 
 kl_divs_bytype = struct;
 kl_divs_null_bytype = struct;

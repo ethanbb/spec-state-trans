@@ -29,7 +29,7 @@ opts = struct(...
     'name',             'pxx_pp',   ... field name of output
     'freq_sm_type',     'med',      ... type of frequency smoothing - 'none', 'med', 'exp', or
                                     ... a valid method input to smoothdata
-    'freq_sm_span',     40,         ... span of frequency smoothing, in Hz
+    'freq_sm_span',     40,         ... span of frequency smoothing, in # of traces
     'time_sm_type',     'exp',      ... type of temporal smoothing - same options as freq_sm_type
     'time_sm_span',     60,         ... span of temporal smoothing, in seconds
     'frac_power',       false,      ... whether to divide by total power across frequencies at each time

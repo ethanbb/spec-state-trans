@@ -14,14 +14,6 @@ function [pc_data_all, fh] = mt_pca(result_files, options)
 % of data from each channel)
 % second output is an array of figure handles.
 
-% get handle to MATLAB pca version to get around annoying shadowing
-persistent pca_fn;
-if isempty(pca_fn)
-    here = cd(fullfile(matlabroot, 'toolbox', 'stats', 'stats'));
-    pca_fn = @pca;
-    cd(here);
-end
-
 opts = struct(...
     'pxx_name',         'pxx',      ... variable name of input time-frequency data
     'name',             'pxx_pca',  ... variable name of output in each input file
@@ -87,9 +79,9 @@ pxx = cell2mat(c_pxx);
 %------------------ Do PCA ---------------------%
 
 if strcmp(opts.thresh_type, 'comps')
-    [coeff, pc_data, ~, ~, explained] = pca_fn(pxx.', 'NumComponents', opts.thresh);
+    [coeff, pc_data, ~, ~, explained] = pca(pxx.', 'NumComponents', opts.thresh);
 else
-    [coeff, pc_data, ~, ~, explained] = pca_fn(pxx.');
+    [coeff, pc_data, ~, ~, explained] = pca(pxx.');
     
 end
 

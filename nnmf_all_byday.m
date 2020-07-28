@@ -149,8 +149,9 @@ for kD = 1:n_days
             [~, classes] = max(V, [], 2);
             
             % count transitions between classes
-            trans = countTransitions(classes, n_comps);
- 
+            % copied from pmtk3's countTransitions
+            trans = accumarray([classes(1:end-1), classes(2:end)], 1, [n_comps, n_comps]);
+
             U_all{kR}{kC} = U;
             V_all{kR}{kC} = V;
             classes_all{kR}{kC} = classes;
