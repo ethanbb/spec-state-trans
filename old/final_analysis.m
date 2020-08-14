@@ -1,4 +1,5 @@
 % Compile results from nnmf_clustering_all.m and look at conditional entropy and transition timing.
+% This was the "final analysis" for Ethan's rotation talk in Spring 2020.
 
 %% Set up variables
 
