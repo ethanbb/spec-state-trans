@@ -98,14 +98,28 @@ for kD = 1:n_days
 end
 
 %% Get and plot median KL divergence for each channel pair (here still assuming V1 super...etc. labels are comparable)
+% For each day, use only chan names specified in the csd results file (since I went back and
+% filtered out channels that don't actually correspond to the layer they're supposed to be)
 
-all_mean_kl_divs = zeros(n_chans, n_chans, n_days);
+layers = {'L2/3', 'L4', 'L5'};
+n_chans = length(layers) * 2;
+
+all_mean_kl_divs = nan(n_chans, n_chans, n_days);
 for kD = 1:n_days
-    res_mfile = matfile(fullfile(results_dir, days{kD}, 'nmf_res.mat'));
-    all_mean_kl_divs(:, :, kD) = mean(res_mfile.kl_divs, 3);
+    res_kld = load(fullfile(results_dir, days{kD}, 'nmf_res.mat'), 'kl_divs', 'chan_names');
+    csd_chans_V1_s = load(fullfile(results_dir, days{kD}, 'csd_V1.mat'), 'chan_names');
+    csd_chans_MC_s = load(fullfile(results_dir, days{kD}, 'csd_MC.mat'), 'chan_names');
+
+    b_chan = [ismember(layers, csd_chans_V1_s.chan_names), ...
+              ismember(layers, csd_chans_MC_s.chan_names)];
+
+    all_mean_kl_divs(b_chan, b_chan, kD) = mean(res_kld.kl_divs(b_chan, b_chan, :), 3);
 end
 
-med_kl_divs = median(all_mean_kl_divs, 3);
+% little hacky, grab chan names again here in case I didn't run the loop above
+chans = res_kld.chan_names;
+
+med_kl_divs = nanmedian(all_mean_kl_divs, 3);
 hf = plot_kldiv_mat(med_kl_divs, chans, sprintf('Median over %d days', n_days));
 savefig(hf, fullfile(results_dir, 'res_figs', 'med_kl_div_days.fig'));
 
@@ -117,7 +131,7 @@ for kD = 1:n_days
     all_mean_kl_divs_null(:, :, kD) = mean(res_mfile.kl_divs_null, 3);
 end
 
-med_kl_div_from_null = median(all_mean_kl_divs_null - all_mean_kl_divs, 3);
+med_kl_div_from_null = nanmedian(all_mean_kl_divs_null - all_mean_kl_divs, 3);
 hf = plot_kldiv_mat(med_kl_div_from_null, chans, 'Amount below divergence from null model (median)');
 savefig(hf, fullfile(results_dir, 'res_figs', 'med_kl_div_fromnull_days.fig'));
 
