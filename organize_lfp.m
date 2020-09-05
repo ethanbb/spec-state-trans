@@ -98,7 +98,8 @@ if isstruct(chans)
         if islogical(req_chans)
             % index into precomputed indices map still in original shape (including invalid channels)
             req_inds = probe_indices_withinvalid.(probename)(req_chans);
-            assert(all(req_inds > 0), 'Channel selection for %s included invalid channels', probename);
+            % eliminate any invalid channels
+            req_inds(req_inds == 0) = [];
 
             indices_to_use{kP} = req_inds(:);
 
@@ -110,7 +111,8 @@ if isstruct(chans)
             lin_inds = sub2ind(size(probe_indices_withinvalid.(probename)), subs{:});
 
             req_inds = probe_indices_withinvalid.(probename)(lin_inds);
-            assert(all(req_inds > 0), 'Channel selection for %s included invalid channels', probename);
+            % eliminate invalid channels
+            req_inds(req_inds == 0) = [];
 
             indices_to_use{kP} = req_inds(:);
         end

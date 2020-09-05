@@ -67,6 +67,8 @@ for kP = 1:n_probes
     % now get the entries corresponding to the selected channels
     if islogical(req_chans)
         req_locs = vertcat(loc_map{req_chans});
+        % eliminate invalid channels (to match organize_lfp output)
+        req_locs(any(isnan(req_locs), 2), :) = [];
 
     elseif isvector(req_chans)
         loc_map_valid = loc_map(cellfun(@(loc) all(~isnan(loc)), loc_map));
@@ -77,6 +79,8 @@ for kP = 1:n_probes
         subs = num2cell(req_chans, 1);
         lin_inds = sub2ind(size(loc_map), subs{:});
         req_locs = vertcat(loc_map{lin_inds});
+        % eliminate invalid channels
+        req_locs(any(isnan(req_locs), 2), :) = [];
     end
 
     channel_locs.(name) = req_locs;
