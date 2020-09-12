@@ -3,7 +3,7 @@ function res = multitaper_analysis(data_s, options)
 % Do multitaper analysis of multiple LFP channels in the same way as
 % Hudson et al., 2014
 %
-% data_s = struct from loading the raw dataset
+% data_s = struct from loading the raw dataset, or matfile object
 % options = struct with overrides of the defaults below
 %
 % If there are artifacts specified, the outputs pxx and phase (if
@@ -13,10 +13,6 @@ function res = multitaper_analysis(data_s, options)
 % Returns a struct of results if options.save == false,
 % or a MatFile object of the saved file if options.save == true;
 
-%---------- organize data ----------%
-
-Fs = data_s.finalSampR;
-lfp_organized = organize_lfp(data_s);
 
 %---------- parse arguments --------%
 opts = struct(...
@@ -44,6 +40,12 @@ for kO = 1:length(opts_in)
     opts.(opts_in{kO}) = options.(opts_in{kO});
 end
 
+% get LFP of requested channels
+Fs = data_s.finalSampR;
+lfp_organized = organize_lfp(data_s, opts.chans);
+[n_chans, len] = size(lfp_organized);
+len_secs = len / Fs;
+
 % derive pad from padbase if necessary
 if ~isempty(opts.padbase)
     assert(isempty(opts.pad), 'Cannot specify both pad and padbase');
@@ -53,7 +55,6 @@ elseif isempty(opts.pad) % base padding on window
 end
 
 % infer clean segments from artifacts
-len_secs = size(lfp_organized, 2) / Fs;
 if iscell(opts.artifacts)
     opts.artifacts = cellfun(@(a) a(:).', opts.artifacts, 'uni', false);
     opts.artifacts = vertcat(opts.artifacts{:});
@@ -75,7 +76,6 @@ opts.clean_segs(clean_len == 0, :) = [];
 thfp = (opts.n_tapers + 1) / 2;
 opts.min_freq = thfp / (opts.pad / Fs);
 
-n_chans = length(opts.chans);
 n_segs = size(opts.clean_segs, 1);
 
 % compute time grid for whole input (see lines 83-91 of swTFspecAnalog.m)
@@ -131,7 +131,7 @@ input_lfp = cell(n_chans, n_segs);
 extra_zeros = zeros(1, opts.winstep * Fs);
 for kC = 1:n_chans
     for kS = 1:n_segs
-        input_lfp{kC, kS} = [lfp_organized(opts.chans(kC), res.seg_samples{kS}), extra_zeros];
+        input_lfp{kC, kS} = [lfp_organized(kC, res.seg_samples{kS}), extra_zeros];
     end
 end
 
