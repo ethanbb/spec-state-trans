@@ -2,7 +2,7 @@
 % Start with lo-res version in order to identify any noise channels or artifacts.
 
 %% Prepare
-prepSR;
+sr_dirs = prepSR;
 
 % These recs are the baseline ones that don't have BS
 grid_recs = {
@@ -14,7 +14,7 @@ grid_recs = {
     };
 
 % common parameters
-save_dir = fullfile(results_dir, 'grid_recs', 'mt_res');
+save_dir = fullfile(sr_dirs.results, 'grid_recs', 'mt_res');
 fork_chans = 1:2:64;
 b_grid_chans = reshape(mod(1:66, 2) == 1, 11, 6); % includes 2 "dummy" channels
 b_dummy_grid_chans = [false(10, 6); false, false, true, true, false, false];
@@ -28,7 +28,7 @@ chans = struct('Probe1', grid_chans, 'Probe2', fork_chans);
 %% Loop through recordings
 for kR = 1:length(grid_recs)
     %% Prepare dataset
-    data_mfile = matfile(fullfile(processed_lfp_dir, sprintf('meanSub_%s.mat', grid_recs{kR})));
+    data_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', grid_recs{kR})));
     
     %% Do low-resolution analysis first
     

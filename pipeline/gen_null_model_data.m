@@ -1,31 +1,16 @@
+function gen_null_model_data(nmf_res_mfiles)
 % Given NMF results, for each channel on each day, fit a Markov chain to the sequence of
 % largest-score classes, generate a new sequence from this, and randomly sample score vectors with
 % replacement from original data to make a null-model NxK score matrix.
+%
+% nmf_res_mfiles is a cell of writable MatFile objects on which to operate.
 
-%% Set up variables
-
-prepSR;
-
-days = {
-    '2020-01-30'
-    '2020-01-31'
-    '2020-02-06'
-    '2020-03-05'
-    '2020-03-06'
-    '2020-03-10'
-    '2020-03-11'
-    };
-
-n_days = length(days);
-
-%% Loop through days
-for kD = 1:n_days
-    %% (run once)
+n_files = length(nmf_res_mfiles);
+for kF = 1:n_files
     rstate = rng('shuffle');
     
     % Get data for all reps/channels
-    day = days{kD};
-    mfile = matfile(fullfile(results_dir, day, 'nmf_res.mat'), 'Writable', true);
+    mfile = nmf_res_mfiles{kF};
     mfile.null_rstate = rstate;
     real_V = mfile.nmf_V;
     null_V = real_V; % just to copy shape
@@ -73,4 +58,6 @@ for kD = 1:n_days
     
     mfile.null_V = null_V;
     mfile.null_classes = null_classes;
+end
+
 end

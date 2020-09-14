@@ -1,4 +1,4 @@
-function concat_and_nmf(input_s)
+function nmf_mfiles = concat_and_nmf(input_s)
 % Concatenate datasets and do non-negative matrix factorization
 % to reduce dimensionality.
 %
@@ -10,10 +10,12 @@ function concat_and_nmf(input_s)
 %       nmf_res_out: output file path
 %       xval_fig_dir: place to save NMF cross-validation figuresS
 
+nmf_mfiles = arrayfun(@(input) matfile(input.nmf_res_out, 'Writable', true), input_s, 'uni', false);
+
 for kO = 1:length(input_s)
     input_info = input_s(kO);
     curr_name = input_info.name;
-    save_mfile = matfile(input_info.nmf_res_out, 'Writable', true);
+    save_mfile = nmf_mfiles{kO};
 
     res_mfiles = cellfun(@(p) matfile(p, 'Writable', true), ...
         input_info.mt_res_in, 'uni', false);
@@ -163,7 +165,7 @@ for kO = 1:length(input_s)
 %             xticks(1:n_comps);
 %             xlabel('Component #');
 %             ylabel('Frequency (Hz)');
-%             title(sprintf('NMF components (%s, %s)', chans{kC}, rec));
+%             title(sprintf('NMF components (%s, %s)', chans{kC}, curr_name));
 % 
 %             % plot representation
 %             figure;
@@ -171,7 +173,7 @@ for kO = 1:length(input_s)
 %             xlabel('Time (s)');
 %             yticks(1:n_comps);
 %             ylabel('Component #');
-%             title(sprintf('NMF component representation of %s on %s', chans{kC}, rec));
+%             title(sprintf('NMF component representation of %s on %s', chans{kC}, curr_name));
 %             
 %             % plot reconstruction
 %             figure;
@@ -179,7 +181,7 @@ for kO = 1:length(input_s)
 %             set(gca, 'YScale', 'log');
 %             xlabel('Time (s)');
 %             ylabel('Frequency (Hz)');
-%             title(sprintf('NMF reconstruction of %s on %s (rank)', chans{kC}, rec));
+%             title(sprintf('NMF reconstruction of %s on %s (rank)', chans{kC}, curr_name));
 
         end
         
@@ -189,6 +191,7 @@ for kO = 1:length(input_s)
         trans_all{kR} = trans_rep;
     end  
     %% Save to the matfile
+    save_mfile.run_name = curr_name;
     save_mfile.nmf_comps = nmf_comps;
     save_mfile.chan_names = chans;
     save_mfile.nmf_U = U_all;

@@ -1,13 +1,13 @@
 %% set dataset info
 
-prepSR;
+sr_dirs = prepSR;
 
 recdate = '2020-01-31';
 time = '12-52-00';
 
-savedir = fullfile(results_dir, recdate, time);
+savedir = fullfile(sr_dirs.results, recdate, time);
 
-data_s = load(fullfile(processed_lfp_dir, sprintf('meanSub_%s_%s.mat', recdate, time)));
+data_s = load(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s_%s.mat', recdate, time)));
 
 %% do low-resolution analysis first
 

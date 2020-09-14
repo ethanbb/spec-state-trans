@@ -26,7 +26,7 @@ TODO: clean up m-file organization. For now, many folders contain an "old" folde
 
     * **Output:** `<date>/<time>/mt_res_layers.mat`
 
-4. Do NMF and extract classes and transitions for each channel (based on dominant component per time) using `nnmf_all_byday.m`
+4. Do NMF and extract classes and transitions for each channel (based on dominant component per time) using `concat_and_nmf.m`
 
     * **Output:** `<date>/nmf_res.mat`
 

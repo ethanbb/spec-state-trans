@@ -1,10 +1,10 @@
 function plot_csd(recdate)
 % Peaks of the resulting plots should be current *sinks*.
 
-prepSR;
+sr_dirs = prepSR;
 
 % Get "snippit" files from this date
-listing = dir(fullfile(snippits_dir, sprintf('snips_%s*', recdate)));
+listing = dir(fullfile(sr_dirs.snippits, sprintf('snips_%s*', recdate)));
 fnames = {listing.name};
 rectimes = cellfun(@(fn) sscanf(fn, sprintf('snips_%s_%%[^.].mat', recdate)), ...
     fnames, 'uni', false);
@@ -28,7 +28,7 @@ end
 mean_snips = cellfun(@(s) squeeze(mean(s, 2)), snips, 'uni', false); % chans x samples
 
 % make sure there's somewhere to save them
-savedir = fullfile(results_dir, recdate);
+savedir = fullfile(sr_dirs.results, recdate);
 if ~exist(savedir, 'dir')
     % try to create it
 

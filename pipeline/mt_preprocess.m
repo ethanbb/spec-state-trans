@@ -93,7 +93,7 @@ for kC = 1:n_chans
     end   
 end
 
-if opts.save
+if opts.save || isstruct(data_or_filename)
     try        
         res_data.(opts.name) = pxx_pp;
     catch me
