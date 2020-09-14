@@ -36,8 +36,8 @@ for kO = 1:length(opts_in)
     opts.(opts_in{kO}) = options.(opts_in{kO});
 end
 
-mt_opts = result.options;
-n_chans_in = length(mt_opts.chans);
+all_chan_names = result.name;
+n_chans_in = length(all_chan_names);
 assert(n_chans_in >= 1, 'No channels in input data');
 
 % process options
@@ -48,7 +48,7 @@ else
     assert(max(opts.chans) <= n_chans_in, 'Channels beyond number available requested');
 end
 opts.chans = opts.chans(:).';
-chan_names = mt_opts.chan_names(opts.chans);
+chan_names = all_chan_names(opts.chans);
 n_chans = length(opts.chans);
 
 % validate pxx_name
