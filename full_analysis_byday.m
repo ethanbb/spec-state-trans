@@ -119,34 +119,3 @@ title({'Mean KL divergence of aligned NMF scores between pairs of channels,', ..
     'with second channel either real data or resampled based on discrete Markov chain'});
 
 savefig(hf, fullfile(sr_dirs.results, 'res_figs', 'kl_div_withnull_violin.fig'));
-
-
-%%
-function hf = plot_kldiv_mat(kl_div, chans, title_line2)
-
-mean_kl_div = mean(kl_div, 3);
-hf = figure;
-sanePColor(mean_kl_div);
-set(gca, 'YDir', 'reverse');
-
-title_line1 = 'NMF score KL divergence - $$\min_X \mathbf{E}[D_{KL}(V_j || V_iX)]$$';
-if nargin < 3 || isempty(title_line2)
-    title(title_line1, 'Interpreter', 'latex');
-else
-    title({title_line1, title_line2}, 'Interpreter', 'latex');
-end
-
-xticks(1:length(chans));
-xticklabels(chans);
-xtickangle(45);
-yticks(1:length(chans));
-yticklabels(chans);
-
-set(gca, 'TickLabelInterpreter', 'none');
-
-ylabel('Channel i');
-xlabel('Channel j');
-
-colorbar;
-
-end

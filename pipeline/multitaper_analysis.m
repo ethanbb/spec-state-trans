@@ -43,6 +43,9 @@ end
 % get LFP of requested channels
 Fs = data_s.finalSampR;
 lfp_organized = organize_lfp(data_s, opts.chans);
+% also get channel locations now while we're at it
+res.chan_locs = get_channel_locs(data_s, opts.chans);
+
 [n_chans, len] = size(lfp_organized);
 len_secs = len / Fs;
 
