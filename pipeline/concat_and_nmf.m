@@ -1,4 +1,4 @@
-function nmf_mfiles = concat_and_nmf(input_s)
+function nmf_mfiles = concat_and_nmf(input_s, pp_options_s)
 % Concatenate datasets and do non-negative matrix factorization
 % to reduce dimensionality.
 %
@@ -8,7 +8,10 @@ function nmf_mfiles = concat_and_nmf(input_s)
 %       name: a user-friendly identifier for this set of inputs (e.g. the day)
 %       mt_res_in: cell array of mt_res file paths
 %       nmf_res_out: output file path
-%       xval_fig_dir: place to save NMF cross-validation figuresS
+%       xval_fig_dir: place to save NMF cross-validation figures
+%
+%   pp_options_s: optional struct of options for mt_preprocess to override defaults. See comments on 'opts'
+%                 in mt_preprocess for details. Defaults are in the "Preprocess data" cell below.
 
 nmf_mfiles = arrayfun(@(input) matfile(input.nmf_res_out, 'Writable', true), input_s, 'uni', false);
 
@@ -38,23 +41,29 @@ for kO = 1:length(input_s)
 
     freq_axis = res_mfiles{1}.freq_grid;
     
-        %% Preprocess data (manually run inner cell to redo)
+    % preprocessing defaults
+    pp_options = struct;
+    pp_options.in_name = 'pxx';      % input field name
+    pp_options.name = 'pxx_rankord'; % output field name
+    pp_options.freq_sm_type = 'med'; % median smooth over frequencies for
+    pp_options.freq_sm_span = 10;    % 10 frequency bins
+    pp_options.time_sm_type = 'exp'; % exponential smooth in time for
+    pp_options.time_sm_span = 120;   % 120 seconds
+    pp_options.norm_type = 'rank';   % Rank-order "normalization"
+    
+    % override by input if provided
+    if exist('pp_options_s', 'var') && ~isempty(pp_options_s)
+        pp_fields = fieldnames(pp_options_s);
+        for kF = 1:length(pp_fields)
+            pp_options.(pp_fields{kF}) = pp_options_s.(pp_fields{kF});
+        end
+    end
+    
+    %% Preprocess data (manually run inner cell to redo)
     for kF = 1:n_files
-        if ~isprop(res_mfiles{kF}, 'pxx_rankord')
+        if ~isprop(res_mfiles{kF}, pp_options.name)
             %%
-            % Rank-order "normalization"
-
-            pp_options = struct;
-            pp_options.in_name = 'pxx';
-            pp_options.name = 'pxx_rankord';
-            pp_options.freq_sm_type = 'med';
-            pp_options.freq_sm_span = 10;
-            pp_options.time_sm_type = 'exp';
-            pp_options.time_sm_span = 120;
-            pp_options.norm_type = 'rank';
-
             mt_preprocess(res_mfiles{kF}, pp_options);
-
         end
     end
     %% Get data for all channels and remove nans
@@ -69,11 +78,11 @@ for kO = 1:length(input_s)
     last_endpoint = 0; % End of time covered by previous recording
     win_length = mt_opts.window; % Add half of this after last timepoint to account for window length
     for kF = 1:n_files
-        pxx_rankord = res_mfiles{kF}.pxx_rankord;
-        b_nans{kF} = all(isnan(pxx_rankord{1}));
+        pxx_processed = res_mfiles{kF}.(pp_options.name);
+        b_nans{kF} = all(isnan(pxx_processed{1}));
 
         for kC = 1:n_chans
-            rec_data{kC}{kF} = pxx_rankord{kC}(:, ~b_nans{kF});
+            rec_data{kC}{kF} = pxx_processed{kC}(:, ~b_nans{kF});
         end
         
         time_axes{kF} = res_mfiles{kF}.time_grid + last_endpoint;
