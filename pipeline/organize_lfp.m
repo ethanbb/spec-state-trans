@@ -1,18 +1,18 @@
-function lfp_organized = organize_lfp(data_s, chans)
+function lfp_organized = organize_lfp(data_s, req_chans)
 % Returns a nchan x ntime LFP matrix with channels in data_s reordered according to
 % map in data_s. The input can also be a matfile object.
 %
 % Note that this switches probe 1 and probe 2 in order to put visual before
 % motor, which is currently my convention.
 %
-% When 'chans' is not passed or empty, returns all channels in default order, which is Probe2 (V1)
-% before Probe1 (M1) or 'grid' before 'fork', and within each probe channels are in matrix order
-% according to the channel map which is superficial to deep, 'left' to 'right'.
+% When req_chans is not passed or empty, returns all channels in order according to the "Channels"
+% fields in the data file, which vary in the order they put the probes (but for the later ones,
+% motor is before visual) and within each probe the order is superficial to deep, 'left' to 'right'.
 %
-% When chans is a double vector, this default order will be indexed by chans to produce the output
+% When req_chans is a double vector, this default order will be indexed by chans to produce the output
 % channels.
 %
-% When chans is a struct, each field is a probe name (e.g. 'Probe1', 'Probe2', 'grid', 'fork') and
+% When req_chans is a struct, each field is a probe name (e.g. 'Probe1', 'Probe2', 'grid', 'fork') and
 % the corresponding value is either:
 %   * a vector of linear indices into the given probe
 %   * a logical matrix the same shape as the channel map (e.g. 64x1 for H3 ('fork'), 32x1 for H4,
@@ -54,40 +54,46 @@ probe_names = probe_names(~cellfun('isempty', probe_names));
 n_probes = length(probe_names);
 
 % make corresponding struct of absolute indices into lfp_field
-probe_indices = struct;
+probe_indices = struct; % indices into lfp_field
 probe_indices_withinvalid = struct;
+probe_channels = struct; % ordered channel number corresponding to each index
+
 for kP = 1:n_probes
     name = probe_names{kP};
     indices = ifo.([name, 'Indicies']);
     valid_inds = indices ~= 0;
     lin_indices_valid = indices(valid_inds);  % remove non-existent channels
+    
+    chans = ifo.([strrep(name, 'grid', 'ecog'), 'Channels']);
 
     if ismember(1, lin_indices_valid)
         % indices are possibly relative to channels, rather than absolute
-        lin_indices_valid = ifo.([strrep(name, 'grid', 'ecog'), 'Channels'])(lin_indices_valid);
+        lin_indices_valid = chans(lin_indices_valid);
         indices(valid_inds) = lin_indices_valid;
     end
 
     probe_indices.(name) = lin_indices_valid(:);
     probe_indices_withinvalid.(name) = indices;
+    probe_channels.(name) = chans(:);
 end
 cat_indices = cell2mat(struct2cell(probe_indices));
+cat_chans = cell2mat(struct2cell(probe_channels));
 assert(length(unique(cat_indices)) == length(cat_indices), 'Probe channels overlap - something''s fishy');
 
 
 % if no 'chans' provided, default to all
-if ~exist('chans', 'var') || isempty(chans)
-    chans = 1:length(cat_indices);
+if ~exist('req_chans', 'var') || isempty(req_chans)
+    req_chans = 1:length(cat_indices);
 end
 
-if isstruct(chans)
-    req_probes = fieldnames(chans);
+if isstruct(req_chans)
+    req_probes = fieldnames(req_chans);
     n_req = length(req_probes);
 
     indices_to_use = cell(n_req, 1);
     for kP = 1:n_req
         probename = req_probes{kP};
-        req_chans = chans.(probename);
+        probe_chans = req_chans.(probename);
 
         % normalize probe name a bit
         if strncmp(probename, 'ecog', 4)
@@ -95,51 +101,40 @@ if isstruct(chans)
         end
 
         % choose indices based on type of req_chans
-        if islogical(req_chans)
+        if islogical(probe_chans)
             % index into precomputed indices map still in original shape (including invalid channels)
-            req_inds = probe_indices_withinvalid.(probename)(req_chans);
+            probe_inds = probe_indices_withinvalid.(probename)(probe_chans);
             % eliminate any invalid channels
-            req_inds(req_inds == 0) = [];
+            probe_inds(probe_inds == 0) = [];
 
-            indices_to_use{kP} = req_inds(:);
+            indices_to_use{kP} = probe_inds(:);
 
-        elseif isvector(req_chans)
-            indices_to_use{kP} = probe_indices.(probename)(req_chans);
+        elseif isvector(probe_chans)
+            indices_to_use{kP} = probe_indices.(probename)(probe_chans);
         else
             % convert subscripts to linear indices first, then proceed as in logical indexing
-            subs = num2cell(req_chans, 1);
+            subs = num2cell(probe_chans, 1);
             lin_inds = sub2ind(size(probe_indices_withinvalid.(probename)), subs{:});
 
-            req_inds = probe_indices_withinvalid.(probename)(lin_inds);
+            probe_inds = probe_indices_withinvalid.(probename)(lin_inds);
             % eliminate invalid channels
-            req_inds(req_inds == 0) = [];
+            probe_inds(probe_inds == 0) = [];
 
-            indices_to_use{kP} = req_inds(:);
+            indices_to_use{kP} = probe_inds(:);
         end
     end
     indices_to_use = cell2mat(indices_to_use);
 
 else
-    % this is all legacy crap that doesn't make much sense. use the struct form if possible.
-
-    % put them in the default order
-    probe2pos = find(strcmp(probe_names, 'Probe2'), 1); % for V1
-    if ~isempty(probe2pos)
-        probe_names = circshift(probe_names, 1 - probe2pos);
-    end
-
-    gridpos = find(strcmp(probe_names, 'grid'), 1);
-    if ~isempty(gridpos)
-        probe_names = circshift(probe_names, 1 - gridpos);
-    end
-
-    cat_indices = cell(n_probes, 1);
-    for kP = 1:n_probes
-        cat_indices{kP} = probe_indices.(probe_names{kP});
-    end
-    cat_indices = cell2mat(cat_indices);
-
-    indices_to_use = cat_indices(chans);
+    % grab channels according to the ordered channel numbers
+    
+    % we have a vector of which channel is in each position.
+    % invert permutation to get vector of which position has each channel.
+    chan_positions = (1:length(cat_chans)).';
+    chan_positions = chan_positions(cat_chans);
+    
+    chan_inds_ordered = cat_indices(chan_positions);
+    indices_to_use = chan_inds_ordered(req_chans);
 end
 
 lfp_all = data_s.(lfp_field); % for mfile

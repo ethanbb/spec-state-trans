@@ -49,7 +49,7 @@ for kP = 1:n_probes
         % Cambridge Neurotech 32-channel
         loc_map = num2cell((1:32)' * 25);
 
-    elseif startsWith(model, 'E64-500-20-60')
+    elseif startsWith(model, {'E64-500-20-60', 'E64-500-20-70'})
         % NeuroNexus ECoG array
         [xloc, yloc] = meshgrid((1:6) * 500, (1:11) * 500);
 
