@@ -19,7 +19,7 @@ options.artifacts = [
 ];
 
 options.chans = [8, 20, 32, 40, 52, 64];
-options.chan_names = {'V1_L23', 'V1_L4', 'V1_L5', 'M1_L23', 'M1_L4', 'M1_L5'};
+options.chan_names = {'V1_L2/3', 'V1_L4', 'V1_L5', 'M1_L2/3', 'M1_L4', 'M1_L5'};
 
 options.save = false;
 

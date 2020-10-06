@@ -22,7 +22,7 @@ options.artifacts = [
 % 21-22 have artifact @ 3594
 % Channel 25 is broken
 options.chans = [10, 23, 32, 42, 54, 64];
-options.chan_names = {'V1_L23', 'V1_L4', 'V1_L5', 'M1_L23', 'M1_L4', 'M1_L5'};
+options.chan_names = {'V1_L2/3', 'V1_L4', 'V1_L5', 'M1_L2/3', 'M1_L4', 'M1_L5'};
 
 options.save = false;
 

@@ -51,34 +51,33 @@ kl_divergence_analysis(nmf_mfiles);
 % filtered out channels that don't actually correspond to the layer they're supposed to be)
 
 layers = {'L2/3', 'L4', 'L5'};
-n_chans = length(layers) * 2;
+chans = [strcat('V1_', layers), strcat('M1_', layers)]; % how they will be plotted
+n_chans = length(chans);
 
 all_mean_kl_divs = nan(n_chans, n_chans, n_days);
+all_mean_kl_divs_null = zeros(n_chans, n_chans, n_days);
+
 for kD = 1:n_days
-    res_kld = load(fullfile(sr_dirs.results, days{kD}, 'nmf_res.mat'), 'kl_divs', 'chan_names');
+    res_kld = load(fullfile(sr_dirs.results, days{kD}, 'nmf_res.mat'), 'kl_divs', 'kl_divs_null', 'chan_names');
     csd_chans_V1_s = load(fullfile(sr_dirs.results, days{kD}, 'csd_V1.mat'), 'chan_names');
     csd_chans_MC_s = load(fullfile(sr_dirs.results, days{kD}, 'csd_MC.mat'), 'chan_names');
     
-    b_chan = [ismember(layers, csd_chans_V1_s.chan_names), ...
-        ismember(layers, csd_chans_MC_s.chan_names)];
+    data_cnames = res_kld.chan_names;
     
-    all_mean_kl_divs(b_chan, b_chan, kD) = mean(res_kld.kl_divs(b_chan, b_chan, :), 3);
+    good_chan_set = [strcat('V1_', csd_chans_V1_s.chan_names), strcat('M1_', csd_chans_MC_s.chan_names)];
+    b_take = ismember(data_cnames, good_chan_set);
+    data_good_cnames = data_cnames(b_take);
+    insert_inds = cellfun(@(c) find(strcmp(chans, c)), data_good_cnames);
+    
+    all_mean_kl_divs(insert_inds, insert_inds, kD) = mean(res_kld.kl_divs(b_take, b_take, :), 3);
+    all_mean_kl_divs_null(insert_inds, insert_inds, kD) = mean(res_kld.kl_divs_null(b_take, b_take, :), 3);
 end
-
-% little hacky, grab chan names again here in case I didn't run the loop above
-chans = res_kld.chan_names;
 
 med_kl_divs = nanmedian(all_mean_kl_divs, 3);
 hf = plot_kldiv_mat(med_kl_divs, chans, sprintf('Median over %d days', n_days));
 savefig(hf, fullfile(sr_dirs.results, 'res_figs', 'med_kl_div_days.fig'));
 
 %% Try same thing but with difference from null model
-
-all_mean_kl_divs_null = zeros(n_chans, n_chans, n_days);
-for kD = 1:n_days
-    res_mfile = matfile(fullfile(sr_dirs.results, days{kD}, 'nmf_res.mat'));
-    all_mean_kl_divs_null(:, :, kD) = mean(res_mfile.kl_divs_null, 3);
-end
 
 med_kl_div_from_null = nanmedian(all_mean_kl_divs_null - all_mean_kl_divs, 3);
 hf = plot_kldiv_mat(med_kl_div_from_null, chans, 'Amount below divergence from null model (median)');

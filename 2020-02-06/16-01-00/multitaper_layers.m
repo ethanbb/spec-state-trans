@@ -26,7 +26,7 @@ options.artifacts = [
 % avoid channels 48-49 due to artifact @ 4533
 
 options.chans = [2, 13, 29, 34, 46, 61];
-options.chan_names = {'V1_L23', 'V1_L4', 'V1_L5', 'M1_L23', 'M1_L4', 'M1_L5'};
+options.chan_names = {'V1_L2/3', 'V1_L4', 'V1_L5', 'M1_L2/3', 'M1_L4', 'M1_L5'};
 
 options.save = false;
 

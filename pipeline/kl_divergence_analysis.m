@@ -45,8 +45,8 @@ for kF = 1:n_files
     Vs_null = Vs_null{2}; % Only use on one side for now
 
     % rescale all to be probability distributions
-    [~, Vs_i] = cellfun(@rescale_to_pmf, Us{1}, Vs_i, 'uni', false);
-    [~, Vs_j, Vs_null] = cellfun(@rescale_to_pmf, Us{2}, Vs_j, Vs_null, 'uni', false);
+    [~, Vs_i] = cellfun(@util.rescale_to_pmf, Us{1}, Vs_i, 'uni', false);
+    [~, Vs_j, Vs_null] = cellfun(@util.rescale_to_pmf, Us{2}, Vs_j, Vs_null, 'uni', false);
     
     %% Loop over channel sets
     for kS = 1:n_sets

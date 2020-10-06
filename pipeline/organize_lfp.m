@@ -63,7 +63,7 @@ for kP = 1:n_probes
     lin_indices_valid = indices(valid_inds);  % remove non-existent channels
 
     if ismember(1, lin_indices_valid)
-        % indices are possible relative to channels, rather than absolute
+        % indices are possibly relative to channels, rather than absolute
         lin_indices_valid = ifo.([strrep(name, 'grid', 'ecog'), 'Channels'])(lin_indices_valid);
         indices(valid_inds) = lin_indices_valid;
     end

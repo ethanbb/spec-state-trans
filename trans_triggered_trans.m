@@ -28,12 +28,11 @@ for kD = 1:length(days)
     % find what channels should actually be used, based on CSD
     csd_chans_V1_s = load(fullfile(sr_dirs.results, days{kD}, 'csd_V1.mat'), 'chan_names');
     csd_chans_MC_s = load(fullfile(sr_dirs.results, days{kD}, 'csd_MC.mat'), 'chan_names');
-    layers = {'L2/3', 'L4', 'L5'};
-    b_chan = [ismember(layers, csd_chans_V1_s.chan_names), ...
-        ismember(layers, csd_chans_MC_s.chan_names)];
+    good_chan_set = [strcat('V1_', csd_chans_V1_s.chan_names), strcat('M1_', csd_chans_MC_s.chan_names)]; 
+    b_chan = ismember(nmf_info.chan_names, good_chan_set);
+    n_chans = sum(b_chan);
     
     chan_names = nmf_info.chan_names(b_chan);
-    n_chans = length(chan_names);
     classes_A = classes_A(b_chan);
     classes_B = classes_B(b_chan);
     

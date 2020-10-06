@@ -18,7 +18,7 @@ options = struct;
 % artifact in chans 53-54 @ 5747
 
 options.chans = [1, 13, 28, 33, 45, 60];
-options.chan_names = {'V1_L23', 'V1_L4', 'V1_L5', 'M1_L23', 'M1_L4', 'M1_L5'};
+options.chan_names = {'V1_L2/3', 'V1_L4', 'V1_L5', 'M1_L2/3', 'M1_L4', 'M1_L5'};
 
 options.save = false;
 

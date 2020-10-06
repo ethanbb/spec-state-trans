@@ -15,7 +15,7 @@ options = struct;
 
 % can't use channels 1 or 33 b/c they're all NaN
 options.chans = [2, 9, 24, 34, 41, 56];
-options.chan_names = {'V1_L23', 'V1_L4', 'V1_L5', 'M1_L23', 'M1_L4', 'M1_L5'};
+options.chan_names = {'V1_L2/3', 'V1_L4', 'V1_L5', 'M1_L2/3', 'M1_L4', 'M1_L5'};
 
 options.save = false;
 
