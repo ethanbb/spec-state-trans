@@ -83,6 +83,19 @@ med_kl_div_from_null = nanmedian(all_mean_kl_divs_null - all_mean_kl_divs, 3);
 hf = plot_kldiv_mat(med_kl_div_from_null, chans, 'Amount below divergence from null model (median)');
 savefig(hf, fullfile(sr_dirs.results, 'res_figs', 'med_kl_div_fromnull_days.fig'));
 
+% make a graph plot out of it
+g = digraph(med_kl_div_from_null);
+lwidths = 5 * g.Edges.Weight / max(g.Edges.Weight);
+edge_labels = arrayfun(@(w) sprintf('%.2f', w), g.Edges.Weight, 'uni', false);
+
+hf_graph = figure;
+plot(g, 'LineWidth', lwidths_frac, 'NodeLabel', chans, 'EdgeLabel', edge_labels, ...
+     'Interpreter', 'none', 'NodeFontSize', 12, 'NodeFontWeight', 'bold', 'Layout', 'layered', ...
+     'Direction', 'right', 'Sources', 1:3, 'Sinks', 4:6)
+
+title(sprintf('Synchrony of channel pairs\n(bits below null model KL divergence)'));
+savefig(hf_graph, fullfile(sr_dirs.results, 'res_figs', 'med_kl_div_fromnull_graphplot.fig'));
+
 %% Make violin plot
 
 types = {'Same channel', 'Same region', 'Cross-region'};
