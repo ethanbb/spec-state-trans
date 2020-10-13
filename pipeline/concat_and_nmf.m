@@ -27,17 +27,6 @@ for kO = 1:length(input_s)
     chans = res_mfiles{1}.name;
     chan_vnames = cellfun(@matlab.lang.makeValidName, chans, 'uni', false); % valid for variables etc.
     n_chans = length(chans);
-    
-    % make sure all recordings use the same channels
-    mt_opts = res_mfiles{1}.options;
-    chan_inds = mt_opts.chans;
-    
-    for kF = 2:n_files
-        this_opts = res_mfiles{kF}.options;
-        this_chan_inds = this_opts.chans;
-        assert(length(this_chan_inds) == length(chan_inds) && all(this_chan_inds == chan_inds), ...
-            'Channels do not match between recordings for %s', curr_name);
-    end
 
     freq_axis = res_mfiles{1}.freq_grid;
     
