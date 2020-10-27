@@ -38,27 +38,28 @@ for kR = 1:length(grid_recs)
     options = struct;
     %options.chans = chans;
     % use all chans, minus those marked as noisy
-    all_chans = setdiff((1:data_info.channels)', data_info.noiseChannels);
-    
-    % make chans and chan_names
-    lower_chans = all_chans(all_chans <= 64);
-    upper_chans = all_chans(all_chans > 64) - 64;
-    
-    options.chans = struct;
-    
-    % here we have to figure out which one is the grid (Probe1)
-    if min(data_info.Probe1Channels) == 1
-        options.chans.Probe1 = lower_chans;
-        options.chans.Probe2 = upper_chans;
-    else
-        options.chans.Probe1 = upper_chans;
-        options.chans.Probe2 = lower_chans;
+    noise_chans = [];
+    if strcmp(grid_recs{kR}, '2019-03-07_12-50-00')
+        noise_chans = 34; % all nans for some reason
     end
     
-    options.chan_names = [
-        arrayfun(@(c) sprintf('G%d', c), options.chans.Probe1, 'uni', false)
-        arrayfun(@(c) sprintf('F%d', c), options.chans.Probe2, 'uni', false)
-        ];
+    [~, options.chans] = organize_lfp(data_mfile, setdiff(1:data_info.channels, noise_chans), ...
+        data_info.noiseChannels, false);
+    
+    % make chan_names based on the actual channels going to be used
+    % figure out which one is the grid
+    probe_names = fieldnames(options.chans);
+    options.chan_names = cell(2, 1);
+    for kP = 1:2
+        if startsWith(data_info.([probe_names{kP}, 'Name']), 'E64')
+            name_prefix = 'G';
+        else
+            name_prefix = 'F';
+        end
+        options.chan_names{kP} = arrayfun(@(c) sprintf('%s%d', name_prefix, c), ...
+            options.chans.(probe_names{kP})(:), 'uni', false);
+    end
+    options.chan_names = vertcat(options.chan_names{:});
     
     options.save = false;
     

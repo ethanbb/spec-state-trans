@@ -8,8 +8,8 @@ grid_rec_dir = fullfile(sr_dirs.results, 'grid_recs');
 days = {
     '2019-03-07'
 %     '2019-03-14'
-%     '2019-04-25'
-%     '2019-08-27'
+    '2019-04-25'
+    '2019-08-27'
     };
 
 n_days = length(days);

@@ -28,6 +28,7 @@ for kO = 1:length(input_s)
     chan_vnames = cellfun(@matlab.lang.makeValidName, chans, 'uni', false); % valid for variables etc.
     n_chans = length(chans);
 
+	mt_opts = res_mfiles{1}.options;
     freq_axis = res_mfiles{1}.freq_grid;
     
     % preprocessing defaults

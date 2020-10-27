@@ -1,4 +1,4 @@
-function lfp_organized = organize_lfp(data_s, req_chans)
+function [lfp_organized, chans_used] = organize_lfp(data_s, req_chans, noise_inds, need_data)
 % Returns a nchan x ntime LFP matrix with channels in data_s reordered according to
 % map in data_s. The input can also be a matfile object.
 %
@@ -21,8 +21,18 @@ function lfp_organized = organize_lfp(data_s, req_chans)
 %   * a k by ndim matrix of indices into the channel map (like the inputs to sub2ind), in order to
 %     get channels by subscript in a specific order. k is the number of channels requested, ndim
 %     is the number of dimensions of the channel map.
-% The output is the concatenated channels selected from each probe, in the order the fields are
-% listed in the struct.
+%
+% If noise_inds is nonempty, it should be a vector of indices into the original
+% (not reordered) data matrix that will be filtered out.
+%
+% If need_data is false, lfp_organized will be empty and only the second output will be returned.
+%
+% The first output is the concatenated channels selected from each probe, in the order
+% the fields are listed in the struct (or the requested order if req_chans is a vector) 
+%
+% The second output is a struct, with each probe name as a field, containing which
+% (reordered) channels were used. So if the 2 most superficial channels in a 32-channel linear probe
+% were discarded, the corresponding struct entry will contain 3:32.
 %
 % Output will be the channels extracted from each entry, concatenated in order.
 
@@ -49,9 +59,13 @@ end
 % find what indices we have
 ifo = data_s.info;
 info_fields = fieldnames(ifo);
-probe_names = regexp(info_fields, '^.*(?=Indicies$)', 'match', 'once');
+probe_names = regexp(info_fields, '^.*(?=Channels$)', 'match', 'once');
 probe_names = probe_names(~cellfun('isempty', probe_names));
+probe_names = setdiff(probe_names, {'noise'}); % since there's a field called noiseChannels
 n_probes = length(probe_names);
+
+% special case for grid because it's special
+isgrid = cellfun(@(pn) startsWith(ifo.([pn, 'Name']), 'E64'), probe_names);
 
 % make corresponding struct of absolute indices into lfp_field
 probe_indices = struct; % indices into lfp_field
@@ -60,11 +74,18 @@ probe_channels = struct; % ordered channel number corresponding to each index
 
 for kP = 1:n_probes
     name = probe_names{kP};
-    indices = ifo.([name, 'Indicies']);
+    if any(strcmp(info_fields, [name, 'Indicies']))
+        indices = ifo.([name, 'Indicies']);
+    elseif isgrid(kP)
+        indices = ifo.gridIndicies;
+    else
+        error('Indices for %s not found', name);
+    end
+    
     valid_inds = indices ~= 0;
     lin_indices_valid = indices(valid_inds);  % remove non-existent channels
     
-    chans = ifo.([strrep(name, 'grid', 'ecog'), 'Channels']);
+    chans = ifo.([name, 'Channels']);
 
     if ismember(1, lin_indices_valid)
         % indices are possibly relative to channels, rather than absolute
@@ -128,16 +149,31 @@ if isstruct(req_chans)
 else
     % grab channels according to the ordered channel numbers
     
-    % we have a vector of which channel is in each position.
-    % invert permutation to get vector of which position has each channel.
-    chan_positions = (1:length(cat_chans)).';
-    chan_positions = chan_positions(cat_chans);
-    
-    chan_inds_ordered = cat_indices(chan_positions);
+    % we have a vector of the index of each channel.
+    % need to reorder so the channels are in increasing order, then index into it
+    chan_inds_ordered(cat_chans) = cat_indices;
     indices_to_use = chan_inds_ordered(req_chans);
 end
 
-lfp_all = data_s.(lfp_field); % for mfile
-lfp_organized = lfp_all(indices_to_use, :, :);
+% take noise_inds into account
+if exist('noise_inds', 'var') && ~isempty(noise_inds)
+    indices_to_use = setdiff(indices_to_use, noise_inds, 'stable');
+end
+
+% get channels that we actually have left
+chans_used = struct;
+for kP = 1:n_probes
+    name = probe_names{kP};
+    this_inds = probe_indices.(name);
+    chans = cell2mat(arrayfun(@(i) find(i == this_inds), indices_to_use(:), 'uni', false));
+    chans_used.(name) = chans;
+end
+
+if ~exist('need_data', 'var') || need_data
+    lfp_all = data_s.(lfp_field); % for mfile
+    lfp_organized = lfp_all(indices_to_use, :, :);
+else
+    lfp_organized = [];
+end
 
 end
