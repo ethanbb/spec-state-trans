@@ -41,15 +41,7 @@ for kP = 1:n_probes
     end
 
     % get location map depending on probe model
-    if startsWith(model, 'H3')
-        % Cambridge Neurotech 64-channel
-        loc_map = num2cell((1:64)' * 20);
-
-    elseif startsWith(model, 'H4')
-        % Cambridge Neurotech 32-channel
-        loc_map = num2cell((1:32)' * 25);
-
-    elseif startsWith(model, {'E64-500-20-60', 'E64-500-20-70'})
+    if startsWith(model, {'E64-500-20-60', 'E64-500-20-70'})
         % NeuroNexus ECoG array
         [xloc, yloc] = meshgrid((1:6) * 500, (1:11) * 500);
 
@@ -59,9 +51,10 @@ for kP = 1:n_probes
 
         % combine
         loc_map = arrayfun(@(x, y) [y, x], xloc, yloc, 'uni', false);
-
     else
-        error('Name %s does not match a known probe model', model);
+        % assume we have a linear probe
+        [num_chans, spacing] = util.get_probe_model_info(model);
+        loc_map = num2cell((1:num_chans)' * spacing);
     end
 
     % now get the entries corresponding to the selected channels
@@ -70,6 +63,11 @@ for kP = 1:n_probes
         % eliminate invalid channels (to match organize_lfp output)
         req_locs(any(isnan(req_locs), 2), :) = [];
 
+    elseif ischar(probe_chans) || isstring(probe_chans)
+        assert(strcmpi(probe_chans, 'all'), 'Unknown channel specifier %s', probe_chans);
+        loc_map_valid = loc_map(cellfun(@(loc) all(~isnan(loc)), loc_map));
+        req_locs = vertcat(loc_map_valid{:});
+        
     elseif isvector(req_chans)
         loc_map_valid = loc_map(cellfun(@(loc) all(~isnan(loc)), loc_map));
         req_locs = vertcat(loc_map_valid{req_chans});

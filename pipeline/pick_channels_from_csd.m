@@ -6,13 +6,17 @@
 sr_dirs = prepSR;
 
 days = {
-    '2020-01-30'
-    '2020-01-31'
-    '2020-02-06'
-    '2020-03-05'
-    '2020-03-06'
-    '2020-03-10'
-    '2020-03-11'
+%     '2020-01-30'
+%     '2020-01-31'
+%     '2020-02-06'
+%     '2020-03-05'
+%     '2020-03-06'
+%     '2020-03-10'
+%     '2020-03-11'
+    '2020-10-26'
+    '2020-10-27'
+    '2020-10-28'
+    '2020-10-29'
     };
 n_days = length(days);
 
@@ -24,15 +28,11 @@ end
 
 function fh = pick_channels(csd_dir)
 
-% positions of layers based on diagram w/ surface = 0 (2/3, 4, 5)
-layers_um = [270, 580, 955];
+% positions of layers based on diagram w/ surface = 0 (2/3, 4, 5A, 5B)
+layers_um = [270, 580, 955, 1200];
 
 % shift so layer 4 = 0
 layers_um = layers_um - layers_um(2);
-
-% convert to relative number of channels
-spacing = 25; % space b/w electrode contacts in um
-layers_chans = round(layers_um / spacing);
 
 % Now locate layer 4 on the V1 CSD (by just finding the peak)
 s_csd = matfile(fullfile(csd_dir, 'csd_V1.mat'), 'Writable', true);
@@ -59,15 +59,16 @@ ah.OuterPosition(3) = 0.95;
 hold on;
 
 % Zoom out so that channels not included on the CSD can be marked
-n_extra_start = chan_axis(1) - 1;
-n_extra_end = 32 - chan_axis(end);
-spacing = mean(diff(depth_axis));
+n_pad_chans = chan_axis(1) - 1;
+total_chans = length(chan_axis) + 2 * n_pad_chans;
+spacing = mean(diff(depth_axis)); % space b/w electrode contacts in cm
+layers_chans = round(layers_um / 1000 / spacing); 
 
 yyaxis left;
-ylim([depth_axis(1) - n_extra_start * spacing, depth_axis(end) + n_extra_end * spacing]);
+ylim([depth_axis(1) - n_pad_chans * spacing, depth_axis(end) + n_pad_chans * spacing]);
 
 yyaxis right;
-ylim([1, 32]);
+ylim([1, total_chans]);
 
 
 plot(max_time, l4_chan, 'r.', 'MarkerSize', 15);
@@ -86,8 +87,8 @@ if ~isempty(new_chan)
 end
 
 % save best possible chans for V1 to matfile
-chan_names = {'L2/3', 'L4', 'L5'};
-chan_inds_v1 = max(1, min(32, l4_chan + layers_chans));
+chan_names = {'L2/3', 'L4', 'L5', 'L5B'};
+chan_inds_v1 = max(1, min(total_chans, l4_chan + layers_chans));
 
 % plot layers on the figure and choose which ones to keep
 x_lims = ah.XLim;

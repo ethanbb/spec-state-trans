@@ -4,60 +4,106 @@
 %% Prepare
 sr_dirs = prepSR;
 
-% These recs are the baseline ones that don't have BS
-grid_recs = {
-     '2019-03-07_12-50-00'
-%     '2019-03-14_13-52-00'
-     '2019-04-25_13-15-00'
-     '2019-04-25_14-29-00'
-     '2019-08-27_14-52-00'
-    };
-
 % common parameters
 save_dir = fullfile(sr_dirs.results, 'grid_recs', 'mt_res');
 
-%fork_chans = 1:2:64;
-% 
-%b_grid_chans = reshape(mod(1:66, 2) == 1, 11, 6); % includes 2 "dummy" channels
-% b_dummy_grid_chans = [false(10, 6); false, false, true, true, false, false];
-% grid_chans = find(b_grid_chans(~b_dummy_grid_chans));
-% 
-% grid_chan_names = arrayfun(@(c) sprintf('G%d', c), grid_chans(:), 'uni', false);
-% fork_chan_names = arrayfun(@(c) sprintf('F%d', c), fork_chans(:), 'uni', false);
-% 
-% chans = struct('Probe1', grid_chans, 'Probe2', fork_chans);
+fork_chans = 1:7:64;
+
+grid_chans_mod = reshape(mod(1:66, 7), 11, 6); % includes 2 "dummy" channels
+b_dummy_grid_chans = [false(10, 6); false, false, true, true, false, false];
+grid_chans_mod = grid_chans_mod(~b_dummy_grid_chans);
+grid_chans = find(grid_chans_mod == 1);
+
+default_chans = struct('G', grid_chans, 'P', fork_chans);
+
+% Make struct array of recs to process
+% These recs are the baseline ones that don't have BS
+
+grid_recs = struct('name', {}, 'artifacts', {}, 'chans', {});
+
+% Not using 03-07 b/c too much burst suppresion
+% grid_recs(end+1).name = '2019-03-14_13-52-00';
+
+grid_recs(end+1).name = '2019-04-25_13-15-00';
+grid_recs(end).artifacts = [
+    454, 1121
+    ];
+grid_recs(end).chans = default_chans;
+% to avoid artifact channels
+grid_recs(end).chans.G = find([
+    grid_chans_mod(1:32) == 4
+    grid_chans_mod(33:end) == 0
+    ]);
+
+grid_recs(end+1).name = '2019-04-25_14-29-00';
+grid_recs(end).artifacts = [
+    109, 399
+    567, -1 % to end
+    ];
+grid_recs(end).chans = default_chans;
+grid_recs(end).chans.G = find([
+    grid_chans_mod(1:32) == 4
+    grid_chans_mod(33:end) == 0
+    ]);
+
+grid_recs(end+1).name = '2019-08-27_14-52-00';
+grid_recs(end).artifacts = [
+    0, 511
+    1095, 1464
+    1806, 1813
+    1933, 2316
+    2996, 3425
+    3749, 3750
+    4123, 4363
+    5211, 5213
+    5722, 5837
+    6084, 6086
+    6711, 6713
+    6984, 7194
+    7698, -1
+    ];
+grid_recs(end).chans = default_chans;
+% designated "noise channels": 7, 8, 26, 33, 44, 54, 55, 56, 57
+% also noisy in this dataset: 9, 10, 43, 45, 61, 62, 63
+grid_recs(end).chans.G = [4, 11, 18, 25, 32, 38, 46, 51, 59, 64];
 
 %% Loop through recordings
 for kR = 1:length(grid_recs)
     %% Prepare dataset
-    data_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', grid_recs{kR})));
+    rec = grid_recs(kR);
+    rec_name = rec.name;
+    data_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', rec_name)));
     data_info = data_mfile.info;
     
     %% Do low-resolution analysis first
     
     options = struct;
-    %options.chans = chans;
-    % use all chans, minus those marked as noisy
-    noise_chans = [];
-    if strcmp(grid_recs{kR}, '2019-03-07_12-50-00')
-        noise_chans = 34; % all nans for some reason
-    end
-    
-    [~, options.chans] = organize_lfp(data_mfile, setdiff(1:data_info.channels, noise_chans), ...
-        data_info.noiseChannels, false);
+
+    options.artifacts = rec.artifacts;
+
+    % get struct of all channels, not including noise chans in the info struct, to figure out how to
+    % proceed
+    [~, good_chans] = organize_lfp(data_mfile, 1:data_info.channels, data_info.noiseChannels, false);
     
     % make chan_names based on the actual channels going to be used
     % figure out which one is the grid
-    probe_names = fieldnames(options.chans);
+    probe_names = fieldnames(good_chans);
     options.chan_names = cell(2, 1);
+    options.chans = struct;
     for kP = 1:2
-        if startsWith(data_info.([probe_names{kP}, 'Name']), 'E64')
+        pname = probe_names{kP};
+        if startsWith(data_info.([pname, 'Name']), 'E64')
             name_prefix = 'G';
         else
-            name_prefix = 'F';
+            name_prefix = 'P';
         end
+        
+        if ~all(ismember(rec.chans.(name_prefix), good_chans.(pname)))
+            keyboard; % figure out how to choose different channels to avoid bad ones
+        end
+        options.chans.(pname) = rec.chans.(name_prefix)(:);
         options.chan_names{kP} = arrayfun(@(c) sprintf('%s%d', name_prefix, c), ...
-            options.chans.(probe_names{kP})(:), 'uni', false);
+            options.chans.(pname), 'uni', false);
     end
     options.chan_names = vertcat(options.chan_names{:});
     
@@ -81,7 +127,7 @@ for kR = 1:length(grid_recs)
     
     options.save = true;
     options.savedir = save_dir;
-    options.filename = sprintf('mt_res_%s.mat', grid_recs{kR});
+    options.filename = sprintf('mt_res_%s.mat', rec_name);
     
     mt_res = multitaper_analysis(data_mfile, options);
 end

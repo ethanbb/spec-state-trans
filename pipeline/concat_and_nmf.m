@@ -128,6 +128,8 @@ for kO = 1:length(input_s)
             %% Do NMF on full dataset
             n_comps = nmf_comps(kC);
             [V, U] = sp_nnmf(rec_data{kC}.', n_comps, [], [], 500000);
+            % Version that tries to make scores sparser, but it's not necessary
+            %[U, V] = kim_park_snmf(rec_data{kC}, n_comps, 0, 0.4, [], [], 500000);
 
             %% Sort comps according to peak frequency, and normalize power of U
 

@@ -21,6 +21,7 @@ function [lfp_organized, chans_used] = organize_lfp(data_s, req_chans, noise_ind
 %   * a k by ndim matrix of indices into the channel map (like the inputs to sub2ind), in order to
 %     get channels by subscript in a specific order. k is the number of channels requested, ndim
 %     is the number of dimensions of the channel map.
+%   * the string 'all' to get all channels on that probe (in default order according to channel map)
 %
 % If noise_inds is nonempty, it should be a vector of indices into the original
 % (not reordered) data matrix that will be filtered out.
@@ -65,7 +66,7 @@ probe_names = setdiff(probe_names, {'noise'}); % since there's a field called no
 n_probes = length(probe_names);
 
 % special case for grid because it's special
-isgrid = cellfun(@(pn) startsWith(ifo.([pn, 'Name']), 'E64'), probe_names);
+isgrid = startsWith(probe_names, 'grid') | startsWith(probe_names, 'ecog');
 
 % make corresponding struct of absolute indices into lfp_field
 probe_indices = struct; % indices into lfp_field
@@ -129,7 +130,11 @@ if isstruct(req_chans)
             probe_inds(probe_inds == 0) = [];
 
             indices_to_use{kP} = probe_inds(:);
-
+            
+        elseif ischar(probe_chans) || isstring(probe_chans)
+            assert(strcmpi(probe_chans, 'all'), 'Unknown channel specifier %s', probe_chans);
+            indices_to_use{kP} = probe_indices.(probename);
+            
         elseif isvector(probe_chans)
             indices_to_use{kP} = probe_indices.(probename)(probe_chans);
         else

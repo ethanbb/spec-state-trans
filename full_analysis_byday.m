@@ -55,7 +55,7 @@ chans = [strcat('V1_', layers), strcat('M1_', layers)]; % how they will be plott
 n_chans = length(chans);
 
 all_mean_kl_divs = nan(n_chans, n_chans, n_days);
-all_mean_kl_divs_null = zeros(n_chans, n_chans, n_days);
+all_mean_kl_divs_null = nan(n_chans, n_chans, n_days);
 
 for kD = 1:n_days
     res_kld = load(fullfile(sr_dirs.results, days{kD}, 'nmf_res.mat'), 'kl_divs', 'kl_divs_null', 'chan_names');

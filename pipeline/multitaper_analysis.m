@@ -65,6 +65,9 @@ end
 
 if isempty(opts.artifacts)
     opts.artifacts = zeros(0, 2);
+elseif opts.artifacts(end, end) == -1
+    % special case, go to end of recording
+    opts.artifacts(end, end) = len_secs;
 end
 opts.artifacts = sortrows(opts.artifacts);
 

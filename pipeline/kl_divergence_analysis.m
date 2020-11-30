@@ -124,10 +124,10 @@ for kF = 1:n_files
         mfile_dir = fileparts(res_mfile.Properties.Source);
         
         hf = plot_kldiv_mat(kl_div, set_chan_names, sprintf('%s - %s', run_name, set_name));
-        savefig(hf, fullfile(mfile_dir, [set_name, 'score_DKL.fig']));
+        savefig(hf, fullfile(mfile_dir, sprintf('score_DKL_%s_%s.fig', run_name, set_name)));
         
         hf2 = plot_kldiv_mat(kl_div_null, set_chan_names, sprintf('%s - %s (null model)', run_name, set_name));
-        savefig(hf2, fullfile(mfile_dir, [set_name, 'score_DKL_null.fig']));
+        savefig(hf2, fullfile(mfile_dir, sprintf('score_DKL_%s_%s_null.fig', run_name, set_name)));
         
     end
 end
