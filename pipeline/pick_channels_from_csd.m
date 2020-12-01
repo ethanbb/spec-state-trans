@@ -6,13 +6,13 @@
 sr_dirs = prepSR;
 
 days = {
-%     '2020-01-30'
-%     '2020-01-31'
-%     '2020-02-06'
-%     '2020-03-05'
-%     '2020-03-06'
-%     '2020-03-10'
-%     '2020-03-11'
+    '2020-01-30'
+    '2020-01-31'
+    '2020-02-06'
+    '2020-03-05'
+    '2020-03-06'
+    '2020-03-10'
+    '2020-03-11'
     '2020-10-26'
     '2020-10-27'
     '2020-10-28'
@@ -50,9 +50,12 @@ max_time = time_after_stim(maxind_across_time);
 l4_chan = s_csd.chan_axis(1, maxind_across_chans(maxind_across_time));
 
 % Open the figure to allow verification/manual correction if necessary.
+isV1 = @(fig) contains(fig.Children(2).Title.String, 'V1');
+
 csd_figs = openfig(fullfile(csd_dir, 'csd.fig'));
-close(csd_figs(2));
-fh = figure(csd_figs(1));
+fig_is_V1 = arrayfun(isV1, csd_figs);
+close(csd_figs(~fig_is_V1));
+fh = figure(csd_figs(fig_is_V1));
 fh.WindowStyle = 'docked';
 ah = gca;
 ah.OuterPosition(3) = 0.95;
@@ -88,7 +91,9 @@ end
 
 % save best possible chans for V1 to matfile
 chan_names = {'L2/3', 'L4', 'L5', 'L5B'};
-chan_inds_v1 = max(1, min(total_chans, l4_chan + layers_chans));
+chan_inds_v1 = l4_chan + layers_chans;
+chan_inds_v1(chan_inds_v1 < 1) = nan;
+chan_inds_v1(chan_inds_v1 > total_chans) = nan;
 
 % plot layers on the figure and choose which ones to keep
 x_lims = ah.XLim;
@@ -97,6 +102,12 @@ cb_y_pos = @(cind) ah.Position(2) + ah.Position(4) * (ah.YLim(2) - cind) / diff(
 
 for kC = length(chan_inds_v1):-1:1
     ind = chan_inds_v1(kC);
+    if isnan(ind)
+        % skip this one
+        cboxes(kC) = uicontrol('Style', 'checkbox', 'Value', 0, 'Visible', false);
+        continue;
+    end
+    
     plot(x_lims, ind * [1, 1], 'r', 'LineWidth', 2);
     cb = uicontrol('Style', 'checkbox', 'Value', 1, ...
         'Units', 'normalized', 'String', sprintf('%s (#%d)', chan_names{kC}, ind));
@@ -123,10 +134,11 @@ end
         s_csd.chans = chan_inds_v1;
 
         % now save to MC file as well
-        chan_inds_mc = chan_inds_v1 + 32;
-        s_csd = matfile(fullfile(csd_dir, 'csd_MC.mat'), 'Writable', true);
+        %chan_inds_mc = chan_inds_v1 + total_chans;
+        % not doing that anymore since I changed the order
+        s_csd = matfile(fullfile(csd_dir, 'csd_M1.mat'), 'Writable', true);
         s_csd.chan_names = chan_names;
-        s_csd.chans = chan_inds_mc;
+        s_csd.chans = chan_inds_v1;
 
         
         if isvalid(fh)

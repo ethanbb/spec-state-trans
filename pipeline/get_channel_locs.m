@@ -63,8 +63,8 @@ for kP = 1:n_probes
         % eliminate invalid channels (to match organize_lfp output)
         req_locs(any(isnan(req_locs), 2), :) = [];
 
-    elseif ischar(probe_chans) || isstring(probe_chans)
-        assert(strcmpi(probe_chans, 'all'), 'Unknown channel specifier %s', probe_chans);
+    elseif ischar(req_chans) || isstring(req_chans)
+        assert(strcmpi(req_chans, 'all'), 'Unknown channel specifier %s', req_chans);
         loc_map_valid = loc_map(cellfun(@(loc) all(~isnan(loc)), loc_map));
         req_locs = vertcat(loc_map_valid{:});
         

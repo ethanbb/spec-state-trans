@@ -19,35 +19,39 @@ default_chans = struct('G', grid_chans, 'P', fork_chans);
 % Make struct array of recs to process
 % These recs are the baseline ones that don't have BS
 
-grid_recs = struct('name', {}, 'artifacts', {}, 'chans', {});
+rec_names = {
+    % Not using 03-07 b/c too much burst suppresion
+    '2019-04-25_13-15-00'
+    '2019-04-25_14-29-00'
+    '2019-08-27_14-52-00'
+    };
+n_recs = length(rec_names);
 
-% Not using 03-07 b/c too much burst suppresion
-% grid_recs(end+1).name = '2019-03-14_13-52-00';
+grid_recs = table(repmat({zeros(0, 2)}, n_recs, 1), repmat(default_chans, n_recs, 1), ... 
+    'VariableNames', {'artifacts', 'chans'}, 'RowNames', rec_names);
 
-grid_recs(end+1).name = '2019-04-25_13-15-00';
-grid_recs(end).artifacts = [
+rec = '2019-04-25_13-15-00';
+grid_recs.artifacts{rec} = [
     454, 1121
     ];
-grid_recs(end).chans = default_chans;
 % to avoid artifact channels
-grid_recs(end).chans.G = find([
+grid_recs.chans(rec).G = find([
     grid_chans_mod(1:32) == 4
     grid_chans_mod(33:end) == 0
     ]);
 
-grid_recs(end+1).name = '2019-04-25_14-29-00';
-grid_recs(end).artifacts = [
+rec = '2019-04-25_14-29-00';
+grid_recs.artifacts{rec} = [
     109, 399
     567, -1 % to end
     ];
-grid_recs(end).chans = default_chans;
-grid_recs(end).chans.G = find([
+grid_recs.chans(rec).G = find([
     grid_chans_mod(1:32) == 4
     grid_chans_mod(33:end) == 0
     ]);
 
-grid_recs(end+1).name = '2019-08-27_14-52-00';
-grid_recs(end).artifacts = [
+rec = '2019-08-27_14-52-00';
+grid_recs.artifacts{rec} = [
     0, 511
     1095, 1464
     1806, 1813
@@ -62,16 +66,14 @@ grid_recs(end).artifacts = [
     6984, 7194
     7698, -1
     ];
-grid_recs(end).chans = default_chans;
 % designated "noise channels": 7, 8, 26, 33, 44, 54, 55, 56, 57
 % also noisy in this dataset: 9, 10, 43, 45, 61, 62, 63
-grid_recs(end).chans.G = [4, 11, 18, 25, 32, 38, 46, 51, 59, 64];
+grid_recs.chans(rec).G = [4, 11, 18, 25, 32, 38, 46, 51, 59, 64];
 
 %% Loop through recordings
 for kR = 1:length(grid_recs)
     %% Prepare dataset
-    rec = grid_recs(kR);
-    rec_name = rec.name;
+    rec_name = rec_names{kR};
     data_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', rec_name)));
     data_info = data_mfile.info;
     
@@ -79,7 +81,7 @@ for kR = 1:length(grid_recs)
     
     options = struct;
 
-    options.artifacts = rec.artifacts;
+    options.artifacts = grid_recs.artifacts{rec_name};
 
     % get struct of all channels, not including noise chans in the info struct, to figure out how to
     % proceed
@@ -98,10 +100,10 @@ for kR = 1:length(grid_recs)
             name_prefix = 'P';
         end
         
-        if ~all(ismember(rec.chans.(name_prefix), good_chans.(pname)))
+        if ~all(ismember(grid_recs.chans(rec_name).(name_prefix), good_chans.(pname)))
             keyboard; % figure out how to choose different channels to avoid bad ones
         end
-        options.chans.(pname) = rec.chans.(name_prefix)(:);
+        options.chans.(pname) = grid_recs.chans(rec_name).(name_prefix)(:);
         options.chan_names{kP} = arrayfun(@(c) sprintf('%s%d', name_prefix, c), ...
             options.chans.(pname), 'uni', false);
     end

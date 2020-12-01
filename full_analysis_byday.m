@@ -50,7 +50,7 @@ kl_divergence_analysis(nmf_mfiles);
 % For each day, use only chan names specified in the csd results file (since I went back and
 % filtered out channels that don't actually correspond to the layer they're supposed to be)
 
-layers = {'L2/3', 'L4', 'L5'};
+layers = {'L2/3', 'L4', 'L5', 'L5B'};
 chans = [strcat('V1_', layers), strcat('M1_', layers)]; % how they will be plotted
 n_chans = length(chans);
 
@@ -60,11 +60,20 @@ all_mean_kl_divs_null = nan(n_chans, n_chans, n_days);
 for kD = 1:n_days
     res_kld = load(fullfile(sr_dirs.results, days{kD}, 'nmf_res.mat'), 'kl_divs', 'kl_divs_null', 'chan_names');
     csd_chans_V1_s = load(fullfile(sr_dirs.results, days{kD}, 'csd_V1.mat'), 'chan_names');
-    csd_chans_MC_s = load(fullfile(sr_dirs.results, days{kD}, 'csd_MC.mat'), 'chan_names');
+    try
+        csd_chans_M1_s = load(fullfile(sr_dirs.results, days{kD}, 'csd_M1.mat'), 'chan_names');
+    catch ME
+        if strcmp(ME.identifier, 'MATLAB:load:couldNotReadFile')
+            % probably saved as MC instead
+            csd_chans_M1_s = load(fullfile(sr_dirs.results, days{kD}, 'csd_MC.mat'), 'chan_names');
+        else
+            rethrow(ME);
+        end
+    end
     
     data_cnames = res_kld.chan_names;
     
-    good_chan_set = [strcat('V1_', csd_chans_V1_s.chan_names), strcat('M1_', csd_chans_MC_s.chan_names)];
+    good_chan_set = [strcat('V1_', csd_chans_V1_s.chan_names), strcat('M1_', csd_chans_M1_s.chan_names)];
     b_take = ismember(data_cnames, good_chan_set);
     data_good_cnames = data_cnames(b_take);
     insert_inds = cellfun(@(c) find(strcmp(chans, c)), data_good_cnames);
