@@ -7,8 +7,7 @@ function [new_U, varargout] = rescale_to_pmf(U, varargin)
 %  * Add a column to each V consisting of 1 - sum(V, 2) (such that all rows sum to 1).
 
 scale_factor = max(cellfun(@(v) max(sum(v, 2)), varargin));
-scale_factor = scale_factor + eps(scale_factor); % make sure there's no discrepancy when dividing each element
-Vs = cellfun(@(v) v / scale_factor, varargin, 'uni', false);
+Vs = cellfun(@(v) v / scale_factor - eps, varargin, 'uni', false);
 U = U * scale_factor;
 
 new_U = [U, zeros(size(U, 1), 1)];
