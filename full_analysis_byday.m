@@ -12,6 +12,10 @@ days = {
     '2020-03-06'
     '2020-03-10'
     '2020-03-11'
+    '2020-10-26'
+    '2020-10-27'
+    '2020-10-28'
+    '2020-10-29'
     };
 
 n_days = length(days);
@@ -46,11 +50,43 @@ gen_null_model_data(nmf_mfiles);
 kl_divergence_analysis(nmf_mfiles);
 
 
+%% Mutual information analysis - now normalized
+
+for kD = 1:n_days
+    mfile = nmf_mfiles{kD};
+    classes_cell = mfile.nmf_classes;
+    % just use run 1 of 2 (arbitrarily)
+    classes_cell = classes_cell{1};
+    chans = mfile.kl_chans;
+
+    classes = horzcat(classes_cell{:});
+    [~, norm_mut_info] = class_mut_info(classes);
+    fh2 = figure;
+    sanePColor(norm_mut_info);
+    set(gca, 'YDir', 'reverse');
+    set(gca, 'TickLabelInterpreter', 'none');
+    xticks(1:length(chans));
+    xticklabels(chans);
+    xtickangle(45);
+    yticks(1:length(chans));
+    yticklabels(chans);
+    c = colorbar;
+    colormap('jet');
+    title(sprintf('Norm. mut. info of classes between electrodes (%s)', days{kD}));
+
+    savefig(fh2, fullfile(sr_dirs.results, days{kD}, sprintf('norm_mut_info_%s.fig', days{kD})));
+end
+
 %% Get and plot median KL divergence for each channel pair (here still assuming V1 super...etc. labels are comparable)
 % For each day, use only chan names specified in the csd results file (since I went back and
 % filtered out channels that don't actually correspond to the layer they're supposed to be)
 
-layers = {'L2/3', 'L4', 'L5', 'L5B'};
+%layers = {'L2/3', 'L4', 'L5', 'L5B'};
+layers = [
+    arrayfun(@(k) ['Sup', num2str(k)], 8:-1:1, 'uni', false), {'L4'}, ...
+    arrayfun(@(k) ['Inf', num2str(k)], 1:8, 'uni', false)
+    ];
+
 chans = [strcat('V1_', layers), strcat('M1_', layers)]; % how they will be plotted
 n_chans = length(chans);
 
@@ -83,6 +119,14 @@ for kD = 1:n_days
 end
 
 med_kl_divs = nanmedian(all_mean_kl_divs, 3);
+
+% eliminate channels with no data
+chans_empty = all(isnan(med_kl_divs)) & all(isnan(med_kl_divs'));
+chans = chans(~chans_empty);
+med_kl_divs = med_kl_divs(~chans_empty, ~chans_empty);
+all_mean_kl_divs = all_mean_kl_divs(~chans_empty, ~chans_empty, :);
+all_mean_kl_divs_null = all_mean_kl_divs_null(~chans_empty, ~chans_empty, :);
+
 hf = plot_kldiv_mat(med_kl_divs, chans, sprintf('Median over %d days', n_days));
 savefig(hf, fullfile(sr_dirs.results, 'res_figs', 'med_kl_div_days.fig'));
 
@@ -93,16 +137,19 @@ hf = plot_kldiv_mat(med_kl_div_from_null, chans, 'Amount below divergence from n
 savefig(hf, fullfile(sr_dirs.results, 'res_figs', 'med_kl_div_fromnull_days.fig'));
 
 % make a graph plot out of it
-g = digraph(med_kl_div_from_null);
-lwidths = 5 * g.Edges.Weight / max(g.Edges.Weight);
+med_kl_div_from_null_nonnan = med_kl_div_from_null;
+med_kl_div_from_null_nonnan(isnan(med_kl_div_from_null)) = 0;
+g = digraph(med_kl_div_from_null, 'omitselfloops');
+ecolors = 5 * g.Edges.Weight / max(g.Edges.Weight);
 edge_labels = arrayfun(@(w) sprintf('%.2f', w), g.Edges.Weight, 'uni', false);
 
 hf_graph = figure;
-plot(g, 'LineWidth', lwidths_frac, 'NodeLabel', chans, 'EdgeLabel', edge_labels, ...
+plot(g, 'EdgeCData', ecolors, 'EdgeColor', 'flat', 'NodeLabel', chans, ... 'EdgeLabel', edge_labels, ...
      'Interpreter', 'none', 'NodeFontSize', 12, 'NodeFontWeight', 'bold', 'Layout', 'layered', ...
-     'Direction', 'right', 'Sources', 1:3, 'Sinks', 4:6)
+     'Direction', 'right', 'Sources', 1:length(chans)/2, 'Sinks', length(chans)/2+1:length(chans));
 
 title(sprintf('Synchrony of channel pairs\n(bits below null model KL divergence)'));
+colorbar;
 savefig(hf_graph, fullfile(sr_dirs.results, 'res_figs', 'med_kl_div_fromnull_graphplot.fig'));
 
 %% Make violin plot

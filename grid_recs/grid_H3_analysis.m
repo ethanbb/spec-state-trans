@@ -172,6 +172,7 @@ for kS = 1:n_sets
     
     hf = figure;
     scatter(distances, kl_divs, 'DisplayName', 'Real states');
+    
     hold on;
     scatter(distances, kl_divs_null, '.', 'DisplayName', 'Null model');
     title(['KL divergences between NMF scores in ', subsets{kS}]);
@@ -180,4 +181,47 @@ for kS = 1:n_sets
     legend;
     
     savefig(hf, fullfile(grid_rec_dir, sprintf('%s_dist_DKL.fig', subsets{kS})));
+end
+
+%% Discrete classes and mutual information analysis
+
+for kD = 1:n_days
+    mfile = nmf_mfiles{kD};
+    classes_all = mfile.nmf_classes;
+    % just use run 1 of 2 (arbitrarily)
+    classes_all = classes_all{1};
+    time_axis = mfile.time_axis;
+    
+    for kS = 1:n_sets
+        set_name = subsets{kS};
+        set_chans = mfile.([set_name, '_chans']);
+        b_set = ismember(mfile.chan_names, set_chans);
+        classes_cell = classes_all(b_set);
+        
+        % make class plot
+        fh1 = figure;
+        class_plot(time_axis, set_chans, classes_cell);
+        xlabel('Time (s)');
+        title(sprintf('NMF component classes (%s, %s)', days{kD}, set_name));
+        savefig(fh1, fullfile(grid_rec_dir, 'nmf_res', sprintf('classes_%s_%s.fig', days{kD}, set_name)));
+    
+        classes = horzcat(classes_cell{:});
+        mut_info = class_mut_info(classes);
+        fh2 = figure;
+        sanePColor(mut_info);
+        set(gca, 'YDir', 'reverse');
+        xticks(1:length(set_chans));
+        xticklabels(set_chans);
+        xtickangle(45);
+        yticks(1:length(set_chans));
+        yticklabels(set_chans);
+        c = colorbar;
+        colormap('jet');
+        c.Label.String = 'Information (bits)';
+        title(sprintf('Mutual information of classes between electrodes (%s, %s)', ...
+            days{kD}, set_name));
+        
+        savefig(fh2, fullfile(grid_rec_dir, 'nmf_res', sprintf('mut_info_%s_%s.fig', ...
+            days{kD}, set_name)));
+    end
 end
