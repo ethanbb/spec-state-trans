@@ -1,38 +1,24 @@
-% For all recording days, use CSD analysis and diagram of rat cortical layers
-% to pick channels to analyze. Aiming for 1 superficial (layer 2/3), 1 layer 4, and 1 layer 5.
+function fh = pick_csd_channels(csd_dir, layers_um, layer_names)
+% Given a directory containing CSD result csd.fig, display a simple GUI to 
+% identify layer 4 in V1 and other layers relative to it. Defaults to
+% L2/3 (or supergranular), L4, L5 (or infragranular) and L5B (deeper point in infragranular).
+% Can override by providing layers_um and layer_names. Given depths are only relative to L4 position.
 
-% Get recording days
-
-sr_dirs = prepSR;
-
-days = {
-    '2020-01-30'
-    '2020-01-31'
-    '2020-02-06'
-    '2020-03-05'
-    '2020-03-06'
-    '2020-03-10'
-    '2020-03-11'
-    '2020-10-26'
-    '2020-10-27'
-    '2020-10-28'
-    '2020-10-29'
-    };
-n_days = length(days);
-
-csd_dirs = fullfile(sr_dirs.results, days);
-
-for kD = 1:n_days
-    uiwait(pick_channels(csd_dirs{kD}));
+if ~exist('layers_um', 'var') || isempty(layers_um)
+    layers_um = [270, 580, 955, 1200];
 end
 
-function fh = pick_channels(csd_dir)
+if ~exist('layer_names', 'var') || isempty(layer_names)
+    layer_names = {'L2/3', 'L4', 'L5', 'L5B'};
+end
 
-% positions of layers based on diagram w/ surface = 0 (2/3, 4, 5A, 5B)
-layers_um = [270, 580, 955, 1200];
+[layers_um, layer_ind] = sort(layers_um);
+layer_names = layer_names(layer_ind);
+l4_ind = find(strcmp(layer_names, 'L4'));
+assert(numel(l4_ind) == 1, 'Exactly one layer must be L4');
 
 % shift so layer 4 = 0
-layers_um = layers_um - layers_um(2);
+layers_um = layers_um - layers_um(l4_ind);
 
 % Now locate layer 4 on the V1 CSD (by just finding the peak)
 s_csd = matfile(fullfile(csd_dir, 'csd_V1.mat'), 'Writable', true);
@@ -65,7 +51,7 @@ hold on;
 n_pad_chans = chan_axis(1) - 1;
 total_chans = length(chan_axis) + 2 * n_pad_chans;
 spacing = mean(diff(depth_axis)); % space b/w electrode contacts in cm
-layers_chans = round(layers_um / 1000 / spacing); 
+layers_chans = round(layers_um / 1000 / spacing);
 
 yyaxis left;
 ylim([depth_axis(1) - n_pad_chans * spacing, depth_axis(end) + n_pad_chans * spacing]);
@@ -90,7 +76,6 @@ if ~isempty(new_chan)
 end
 
 % save best possible chans for V1 to matfile
-chan_names = {'L2/3', 'L4', 'L5', 'L5B'};
 chan_inds_v1 = l4_chan + layers_chans;
 chan_inds_v1(chan_inds_v1 < 1) = nan;
 chan_inds_v1(chan_inds_v1 > total_chans) = nan;
@@ -110,11 +95,11 @@ for kC = length(chan_inds_v1):-1:1
     
     plot(x_lims, ind * [1, 1], 'r', 'LineWidth', 2);
     cb = uicontrol('Style', 'checkbox', 'Value', 1, ...
-        'Units', 'normalized', 'String', sprintf('%s (#%d)', chan_names{kC}, ind));
+        'Units', 'normalized', 'String', sprintf('%s (#%d)', layer_names{kC}, ind));
     cb.Position(1) = cb_x_pos;
     cb.Position(2) = cb_y_pos(chan_inds_v1(kC)) - cb.Position(4) / 2;
     
-    if kC < length(chan_inds_v1)
+    if kC < length(chan_inds_v1) && ~isnan(chan_inds_v1(kC + 1))
         % make sure they don't overlap
         last_top = cboxes(kC + 1).Position(2) + cb.Position(4);
         cb.Position(2) = max(cb.Position(2), last_top + (cb.Position(4) * 0.2));
@@ -126,20 +111,20 @@ end
 
     function save_callback(~, ~)
         chans_to_keep = [cboxes.Value] == [cboxes.Max];
-        chan_names = chan_names(chans_to_keep);
+        layer_names = layer_names(chans_to_keep);
         chan_inds_v1 = chan_inds_v1(chans_to_keep);
         
         % save to V1 and MC files
-        s_csd.chan_names = chan_names;
+        s_csd.chan_names = layer_names;
         s_csd.chans = chan_inds_v1;
-
+        
         % now save to MC file as well
         %chan_inds_mc = chan_inds_v1 + total_chans;
         % not doing that anymore since I changed the order
         s_csd = matfile(fullfile(csd_dir, 'csd_M1.mat'), 'Writable', true);
-        s_csd.chan_names = chan_names;
+        s_csd.chan_names = layer_names;
         s_csd.chans = chan_inds_v1;
-
+        
         
         if isvalid(fh)
             close(fh);
