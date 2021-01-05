@@ -17,6 +17,8 @@ options = struct;
 % chans 2-4 have an artifact from 5395-5397
 options.artifacts = [5395, 5397];
 options.chans = [2, 9, 24, 34, 41, 56];
+% fix for new organize_lfp behavior
+options.chans = struct('Probe2', options.chans(1:3), 'Probe1', options.chans(4:6) - 32);
 options.chan_names = {'V1_L2/3', 'V1_L4', 'V1_L5', 'M1_L2/3', 'M1_L4', 'M1_L5'};
 
 options.save = false;

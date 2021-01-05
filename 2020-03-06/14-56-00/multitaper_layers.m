@@ -21,6 +21,8 @@ options.artifacts = [
 
 % channel 25 looks broken
 options.chans = [10, 22, 32, 42, 54, 64];
+% fix for new organize_lfp behavior
+options.chans = struct('Probe2', options.chans(1:3), 'Probe1', options.chans(4:6) - 32);
 options.chan_names = {'V1_L2/3', 'V1_L4', 'V1_L5', 'M1_L2/3', 'M1_L4', 'M1_L5'};
 
 options.save = false;
