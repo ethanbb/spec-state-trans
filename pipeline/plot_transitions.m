@@ -35,6 +35,7 @@ end
 ax = gca;
 ax.Color = opts.AxesBgColor;
 ax.TickLabelInterpreter = 'none';
+ax.YDir = 'reverse';
 hold on;
 
 line_opts_cell = namedargs2cell(line_opts);
