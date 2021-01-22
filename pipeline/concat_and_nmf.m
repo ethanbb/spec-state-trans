@@ -56,28 +56,28 @@ for kO = 1:length(input_s)
             mt_preprocess(res_mfiles{kF}, pp_options);
         end
     end
-    %% Get data for all channels and remove nans
+    %% Get data for all channels and concatenate good segments
     
     % Also create a time axis for all recordings combined, with the second one picking
     % up where the first one ends etc.
     
     time_axes = cell(1, n_files);
-    b_nans = cell(1, n_files);
     rec_data = repmat({cell(1, n_files)}, n_chans, 1);
     
     last_endpoint = 0; % End of time covered by previous recording
     win_length = mt_opts.window; % Add half of this after last timepoint to account for window length
     for kF = 1:n_files
         pxx_processed = res_mfiles{kF}.(pp_options.name);
-        b_nans{kF} = all(isnan(pxx_processed{1}));
+        seg_windows = res_mfiles{kF}.seg_windows;
+        good_windows_cat = cell2mat(seg_windows);
 
         for kC = 1:n_chans
-            rec_data{kC}{kF} = pxx_processed{kC}(:, ~b_nans{kF});
+            rec_data{kC}{kF} = pxx_processed{kC}(:, good_windows_cat);
         end
         
         time_axes{kF} = res_mfiles{kF}.time_grid + last_endpoint;
         last_endpoint = time_axes{kF}(end) + win_length/2;
-        time_axes{kF} = time_axes{kF}(~b_nans{kF});
+        time_axes{kF} = time_axes{kF}(good_windows_cat);
     end
     time_axis = cell2mat(time_axes);
     rec_data = cellfun(@cell2mat, rec_data, 'uni', false); % concatenate each channel individually
