@@ -47,8 +47,10 @@ nmf_mfiles = concat_and_nmf(input_s);
 gen_null_model_data(nmf_mfiles);
 
 %% Do KL divergence analysis
-kl_divergence_analysis(nmf_mfiles);
+score_dist_analysis(nmf_mfiles, 'kl_div');
 
+%% Also try with Euclidean distance
+score_dist_analysis(nmf_mfiles, 'L2_dist');
 
 %% Mutual information analysis - now normalized
 
@@ -114,8 +116,8 @@ for kD = 1:n_days
     data_good_cnames = data_cnames(b_take);
     insert_inds = cellfun(@(c) find(strcmp(chans, c)), data_good_cnames);
     
-    all_mean_kl_divs(insert_inds, insert_inds, kD) = mean(res_kld.kl_divs(b_take, b_take, :), 3);
-    all_mean_kl_divs_null(insert_inds, insert_inds, kD) = mean(res_kld.kl_divs_null(b_take, b_take, :), 3);
+    all_mean_kl_divs(insert_inds, insert_inds, kD) = res_kld.kl_divs(b_take, b_take);
+    all_mean_kl_divs_null(insert_inds, insert_inds, kD) = res_kld.kl_divs_null(b_take, b_take);
 end
 
 med_kl_divs = nanmedian(all_mean_kl_divs, 3);
@@ -127,13 +129,13 @@ med_kl_divs = med_kl_divs(~chans_empty, ~chans_empty);
 all_mean_kl_divs = all_mean_kl_divs(~chans_empty, ~chans_empty, :);
 all_mean_kl_divs_null = all_mean_kl_divs_null(~chans_empty, ~chans_empty, :);
 
-hf = plot_kldiv_mat(med_kl_divs, chans, sprintf('Median over %d days', n_days));
+hf = plot_dist_mat(med_kl_divs, chans, sprintf('Median over %d days', n_days));
 savefig(hf, fullfile(sr_dirs.results, 'res_figs', 'med_kl_div_days.fig'));
 
 %% Try same thing but with difference from null model
 
 med_kl_div_from_null = nanmedian(all_mean_kl_divs_null - all_mean_kl_divs, 3);
-hf = plot_kldiv_mat(med_kl_div_from_null, chans, 'Amount below divergence from null model (median)');
+hf = plot_dist_mat(med_kl_div_from_null, chans, 'Amount below divergence from null model (median)');
 savefig(hf, fullfile(sr_dirs.results, 'res_figs', 'med_kl_div_fromnull_days.fig'));
 
 % make a graph plot out of it

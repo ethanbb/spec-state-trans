@@ -79,12 +79,12 @@ for kS = 1:n_sets
     
     % Plots - KL divergence and difference from null model
     med_kl_div = nanmedian(all_mean_kl_divs, 3);
-    hf = plot_kldiv_mat(med_kl_div, chans_all, ...
+    hf = plot_dist_mat(med_kl_div, chans_all, ...
         sprintf('Median over %d days - %s', n_days, subset));
     savefig(hf, fullfile(grid_rec_dir, sprintf('score_DKL_%s.fig', subset)));
     
     med_kl_div_from_null = nanmedian(all_mean_kl_divs_null - all_mean_kl_divs, 3);
-    hf = plot_kldiv_mat(med_kl_div_from_null, chans_all, ...
+    hf = plot_dist_mat(med_kl_div_from_null, chans_all, ...
         sprintf('Median over %d days, diff. from null - %s', n_days, subset));
     savefig(hf, fullfile(grid_rec_dir, sprintf('score_DKL_fromnull_%s.fig', subset)));
 end

@@ -1,4 +1,4 @@
-function hf = plot_dist_mat(kl_div, chans, title_line2, dist_type)
+function hf = plot_dist_mat(dist_mats, chans, title_line2, dist_type)
 % Plot a grid of KL divergences between pairs of channels (as obtained by kl_divergence_analysis)
 %
 % Inputs:
@@ -6,9 +6,9 @@ function hf = plot_dist_mat(kl_div, chans, title_line2, dist_type)
 %   chans: cell array of channel names
 %   title_line2: If nonempty, print this below the general figure title.
 
-mean_kl_div = mean(kl_div, 3);
+mean_dist_mat = mean(dist_mats, 3);
 hf = figure;
-sanePColor(mean_kl_div);
+sanePColor(mean_dist_mat);
 set(gca, 'YDir', 'reverse');
 
 if nargin < 4 || isempty(dist_type)
