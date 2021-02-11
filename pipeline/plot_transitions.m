@@ -55,7 +55,7 @@ yticklabels(chan_names);
 
 % add colorbar
 if color_globality
-    colormap(globality_colors);
+    colormap(ax, globality_colors);
     caxis([0.5, n_chans + 0.5]);
     cb = colorbar('Ticks', 1:n_chans);
     cb.Label.String = 'Globality (channels)';

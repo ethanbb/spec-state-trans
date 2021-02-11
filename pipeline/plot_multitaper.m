@@ -114,7 +114,11 @@ for kC = 1:n_chans
             xlabel('Time (s)');
         end
         ylabel('Frequency (Hz)');
-        title(sprintf('%s in %s', opts.label{kF}, opts.chan_names{kC}), 'Interpreter', 'none');
+        title_str = sprintf('%s in %s', opts.label{kF}, opts.chan_names{kC});
+        if opts.take_log(kF)
+            title_str = sprintf('Log of %s', title_str);
+        end
+        title(title_str, 'Interpreter', 'none');
     end
 end
 
