@@ -166,7 +166,7 @@ for kO = 1:length(input_s)
 %             xticks(1:n_comps);
 %             xlabel('Component #');
 %             ylabel('Frequency (Hz)');
-%             title(sprintf('NMF components (%s, %s)', chans{kC}, curr_name));
+%             title(sprintf('NMF components (%s, %s)', chans{kC}, curr_name), 'Interpreter', 'none');
 % 
 %             % plot representation
 %             figure;
@@ -174,7 +174,8 @@ for kO = 1:length(input_s)
 %             xlabel('Time (s)');
 %             yticks(1:n_comps);
 %             ylabel('Component #');
-%             title(sprintf('NMF component representation of %s on %s', chans{kC}, curr_name));
+%             title(sprintf('NMF component representation of %s on %s', chans{kC}, curr_name), ...
+%                 'Interpreter', 'none');
 %             
 %             % plot reconstruction
 %             figure;
@@ -182,7 +183,8 @@ for kO = 1:length(input_s)
 %             set(gca, 'YScale', 'log');
 %             xlabel('Time (s)');
 %             ylabel('Frequency (Hz)');
-%             title(sprintf('NMF reconstruction of %s on %s (rank)', chans{kC}, curr_name));
+%             title(sprintf('NMF reconstruction of %s on %s (rank)', chans{kC}, curr_name), ...
+%                 'Interpreter', 'none');
 
         end
         
