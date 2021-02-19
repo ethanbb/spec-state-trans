@@ -17,6 +17,8 @@ opts = struct(...
         ) ...
     );
 
+filter_params = fieldnames(opts.filters);
+
 if exist('options', 'var') && isstruct(options)
     opts_in = fieldnames(options);
     for kO = 1:length(opts_in)
@@ -26,11 +28,17 @@ end
 
 % in case of a single filter, allow specifying parameters directly
 if isscalar(opts.filters)
-    filter_params = fieldnames(opts.filters);
     for kP = 1:length(filter_params)
         if isfield(opts, filter_params{kP})
             opts.filters.(filter_params{kP}) = opts.(filter_params{kP});
         end
+    end
+end
+
+% make sure we have all the required "filters" fields
+for kP = 1:length(filter_params)
+    if ~isfield(opts.filters, filter_params{kP})
+        [opts.filters.(filter_params{kP})] = deal([]);
     end
 end
 
