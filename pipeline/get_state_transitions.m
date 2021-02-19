@@ -9,7 +9,7 @@ opts = struct(...
                             ... this can be a struct array, in which case each element's
                             ... filters are applied sequentially. empty array = don't use condition.
             'dwell_time',       100,  ... merge adjoining segment A into B if A is < 20 seconds AND
-            'max_score_ratio',  1.2,  ... max ratio of A vs. B class score in A segment is < 1.2 AND
+            'mean_score_ratio', 1.1,  ... ratio of mean A vs. B class score in A segment is < 1.1 AND
             'dist_pctile',      [],   ... overall transition distance percentile is below this AND
             'dist_chan_pctile', [],   ... per-chan transition distance percentile is below this.
             'tiebreaker',       'dist_pctile' ... how to decide which way to merge (B -> A or B -> C)

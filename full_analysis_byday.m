@@ -47,9 +47,9 @@ nmf_mfiles = concat_and_nmf(input_s);
 gen_null_model_data(nmf_mfiles);
 
 %% Do KL divergence analysis
-score_dist_analysis(nmf_mfiles, 'kl_div');
+% score_dist_analysis(nmf_mfiles, 'kl_div');
 
-%% Also try with Euclidean distance
+%% Euclidean distance analysis of aligned scores
 score_dist_analysis(nmf_mfiles, 'L2_dist');
 
 %% Mutual information analysis - now normalized
@@ -78,6 +78,58 @@ for kD = 1:n_days
 
     savefig(fh2, fullfile(sr_dirs.results, days{kD}, sprintf('norm_mut_info_%s.fig', days{kD})));
 end
+
+%% Transition synchrony analysis
+% Get transitions for each day
+trans_tables = cell(n_days, 1);
+for kD = 1:n_days
+    mt_paths = input_s(kD).mt_res_in;
+    nmf_path = input_s(kD).nmf_res_out;
+    trans_tables{kD} = get_state_transitions(mt_paths, nmf_path);
+    
+    % add SPIKE-Sync score
+    trans_tables{kD} = calc_transition_synchronization(trans_tables{kD});
+    
+    figure;
+    plot_transitions(trans_tables{kD});
+    title(sprintf('Transitions with sync scores - %s', input_s(kD).name));
+end
+
+% Make CDF of sync scores and compare to bootstrap
+n_bootstrap = 1000;
+
+figure;
+sync_scores_all = cellfun(@(tt) tt.sync_score, trans_tables, 'uni', false);
+sync_scores_all = vertcat(sync_scores_all{:});
+[real_cdf, bin_edges] = histcounts(sync_scores_all, 'Normalization', 'cdf');
+bin_centers = mean([bin_edges(1:end-1); bin_edges(2:end)]);
+plot(bin_centers, real_cdf, '.-');
+hold on;
+
+boot_cdf = zeros(n_bootstrap, length(bin_centers));
+for kB = 1:n_bootstrap
+    shuffled_sync_scores = cell(n_days, 1);
+    
+    for kD = 1:n_days
+        trans_shuffled = shuffle_trans_dwell_times(trans_tables{kD});
+        trans_shuffled = calc_transition_synchronization(trans_shuffled);
+        shuffled_sync_scores{kD} = trans_shuffled.sync_score;
+    end
+    shuffled_sync_scores = vertcat(shuffled_sync_scores{:});
+    boot_cdf(kB, :) = histcounts(shuffled_sync_scores, bin_edges, 'Normalization', 'cdf');
+end
+
+% Plot median and 95% CI of bootstrap CDFs with error bars
+boot_cdf_quantiles = quantile(boot_cdf, [0.025, 0.5, 0.975]);
+neg = boot_cdf_quantiles(2,:) - boot_cdf_quantiles(1, :);
+pos = boot_cdf_quantiles(3,:) - boot_cdf_quantiles(2,:);
+errorbar(bin_centers, boot_cdf_quantiles(2,:), neg, pos, '.-');
+title(sprintf('Synchronization scores for all days (%d bootstraps)', n_bootstrap));
+xlabel('Sync score');
+ylabel('CDF');
+legend('Real', 'Shuffled', 'Location', 'northwest');
+
+%% **** Below here is old - to be updated ****
 
 %% Get and plot median KL divergence for each channel pair (here still assuming V1 super...etc. labels are comparable)
 % For each day, use only chan names specified in the csd results file (since I went back and

@@ -105,27 +105,27 @@ while curr_ind <= height(tt_seg)
         can_merge_next = can_merge_next && curr_dwell_below_thresh;
     end
     
-    % check max score ratio
-    if ~isempty(filter.max_score_ratio)
+    % check mean score ratio
+    if ~isempty(filter.mean_score_ratio)
         prev_class = curr_trans.start_class;
         curr_class = curr_trans.end_class;
         
         scores_prev = seg_scores(prev_state_start:prev_state_end, :);
-        max_ratio_prev = max(scores_prev(:, prev_class) ./ scores_prev(:, curr_class));
-        can_merge_right = can_merge_right && max_ratio_prev < filter.max_score_ratio;
+        mean_ratio_prev = mean(scores_prev(:, prev_class)) / mean(scores_prev(:, curr_class));
+        can_merge_right = can_merge_right && mean_ratio_prev < filter.mean_score_ratio;
         
         scores_curr = seg_scores(curr_state_start:curr_state_end, :);
-        max_ratio_curr = max(scores_curr(:, curr_class) ./ scores_curr(:, prev_class));
-        can_merge_left = can_merge_left && max_ratio_curr < filter.max_score_ratio;
+        mean_ratio_curr = mean(scores_curr(:, curr_class)) / mean(scores_curr(:, prev_class));
+        can_merge_left = can_merge_left && mean_ratio_curr < filter.mean_score_ratio;
         
         if can_merge_next
             next_class = next_trans.end_class;
-            max_ratio_next = max(scores_curr(:, curr_class) ./ scores_curr(:, next_class));
-            can_merge_next = can_merge_next && max_ratio_next < filter.max_score_ratio;
+            mean_ratio_next = mean(scores_curr(:, curr_class)) / mean(scores_curr(:, next_class));
+            can_merge_next = can_merge_next && mean_ratio_next < filter.mean_score_ratio;
         end
         
-        if can_merge_next && strcmp(filter.tiebreaker, 'max_score_ratio')
-            tiebreak_doit = max_ratio_curr < max_ratio_next;
+        if can_merge_next && strcmp(filter.tiebreaker, 'mean_score_ratio')
+            tiebreak_doit = mean_ratio_curr < mean_ratio_next;
         end
     end
     
@@ -146,7 +146,7 @@ while curr_ind <= height(tt_seg)
                 tiebreak_doit = true;
             case 'right'
                 tiebreak_doit = false;
-            case 'max_score_ratio'  % already handled
+            case 'mean_score_ratio' % already handled
             otherwise
                 error('Unknown tiebreaker: "%s"', filter.tiebreaker);
         end
@@ -155,7 +155,7 @@ while curr_ind <= height(tt_seg)
     end
     
     if can_merge_left
-        [tt_seg, curr_ind] = remove_transition(tt_seg, curr_ind, 'right');
+        [tt_seg, curr_ind] = remove_transition(tt_seg, curr_ind, 'left');
         continue;
     end
     
