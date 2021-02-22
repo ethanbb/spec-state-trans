@@ -13,17 +13,13 @@ days = {
     '2020-03-06'
     '2020-03-10'
     '2020-03-11'
-    '2020-10-26'
-    '2020-10-27'
-    '2020-10-28'
-    '2020-10-29'
     };
 n_days = length(days);
 
 csd_dirs = fullfile(sr_dirs.results, days);
 
 for kD = 1:n_days
-    uiwait(pick_csd_channels(csd_dirs{kD}));
+    uiwait(pick_csd_channels(csd_dirs{kD}, [], [], 'V1', {'MC'}));
 end
 
 
