@@ -1,8 +1,46 @@
-function transitions = get_state_transitions(mt_res_files, nmf_res_file, dist_radius)
+function transitions = get_state_transitions(mt_res_files, nmf_res_file, options)
 % Get a more detailed table of transitions as defined by discrete classes from an NMF analysis.
 % Includes times in seconds, change distances based on NMF scores and distance percentiles
 % based on comparing within each channel and across all channels.
-% dist_radius is how far back and forward to look when computing distance across a transition, in s.
+
+opts = struct(...
+    'dist_radius',  3,      ... seconds back and forward to look when computing dist across transition
+    'filters',      struct( ... conjunctive conditions to remove transitions (remove if all are active)
+                            ... this can be a struct array, in which case each element's
+                            ... filters are applied sequentially. empty array = don't use condition.
+            'dwell_time',       100,  ... merge adjoining segment A into B if A is < 20 seconds AND
+            'mean_score_ratio', 1.1,  ... ratio of mean A vs. B class score in A segment is < 1.1 AND
+            'dist_pctile',      [],   ... overall transition distance percentile is below this AND
+            'dist_chan_pctile', [],   ... per-chan transition distance percentile is below this.
+            'tiebreaker',       'dist_pctile' ... how to decide which way to merge (B -> A or B -> C)
+                                              ... in case the conditions are satisfied either way.
+        ) ...
+    );
+
+filter_params = fieldnames(opts.filters);
+
+if exist('options', 'var') && isstruct(options)
+    opts_in = fieldnames(options);
+    for kO = 1:length(opts_in)
+        opts.(opts_in{kO}) = options.(opts_in{kO});
+    end
+end
+
+% in case of a single filter, allow specifying parameters directly
+if isscalar(opts.filters)
+    for kP = 1:length(filter_params)
+        if isfield(opts, filter_params{kP})
+            opts.filters.(filter_params{kP}) = opts.(filter_params{kP});
+        end
+    end
+end
+
+% make sure we have all the required "filters" fields
+for kP = 1:length(filter_params)
+    if ~isfield(opts.filters, filter_params{kP})
+        [opts.filters.(filter_params{kP})] = deal([]);
+    end
+end
 
 % load seg windows
 seg_lengths = cell(1, length(mt_res_files));
@@ -14,19 +52,15 @@ for kR = 1:length(mt_res_files)
     seg_lengths{kR} = cellfun('length', mt_res.seg_windows);
 end
 seg_lengths = cell2mat(seg_lengths);
+n_segs = length(seg_lengths);
 
 % get radius in samples
-if ~exist('dist_radius', 'var') || isempty(dist_radius)
-    dist_radius = 3;
-end
 mt_opts = mt_res.options;
-radius_samps = dist_radius / mt_opts.winstep;
+radius_samps = opts.dist_radius / mt_opts.winstep;
 
 % get where each good segment starts and ends in post-multitaper samples
 seg_ends = cumsum(seg_lengths);
 seg_starts = [1, seg_ends(1:end-1) + 1];
-segs = [seg_starts; seg_ends];
-n_segs = length(segs);
 
 % load classes and scores to identify transitions (just use 1st repetition)
 if ischar(nmf_res_file)
@@ -39,31 +73,33 @@ scores = nmf_res_file.nmf_V;
 scores = scores{1};
 
 time_axis = nmf_res_file.time_axis;
-time_segs = arrayfun(@(kS) time_axis(segs(1, kS):segs(2, kS)), 1:n_segs, 'uni', false);
+time_axis = time_axis(:);
+
+% divide things into "good data" segments
+segmentize = @(var) arrayfun(@(ss, se) var(ss:se, :), seg_starts, seg_ends, 'uni', false);
+time_segs = segmentize(time_axis);
+class_segs = cellfun(segmentize, classes, 'uni', false);
+score_segs = cellfun(segmentize, scores, 'uni', false);
+
 chan_names = nmf_res_file.chan_names;
 n_chans = length(chan_names);
 
-chan_trans = cell(n_chans, 1);
+all_trans = cell(n_chans, 1);
 for kC = 1:n_chans    
-    trans_times = cell(n_segs, 1);
-    dwell_times = cell(n_segs, 1);
-    start_classes = cell(n_segs, 1);
-    end_classes = cell(n_segs, 1);
-    trans_dists = cell(n_segs, 1);
+    chan_trans = cell(n_segs, 1);
     
     for kS = 1:n_segs
-        time = time_segs{kS}(:);
-        chan_classes = classes{kC}(segs(1, kS):segs(2, kS));
-        chan_scores = scores{kC}(segs(1, kS):segs(2, kS), :);
+        time = time_segs{kS};
+        chan_classes = class_segs{kC}{kS};
+        chan_scores = score_segs{kC}{kS};
         
-        b_trans = [false; diff(chan_classes) ~= 0];
-        trans_inds = find(b_trans);
+        trans_inds = find(diff(chan_classes) ~= 0) + 1;
         n_trans = length(trans_inds);
         
-        trans_times{kS} = time(b_trans);
-        dwell_times{kS} = [trans_times{kS}(2:end); time(end)] - trans_times{kS};
-        end_classes{kS} = chan_classes(trans_inds);
-        start_classes{kS} = chan_classes(trans_inds - 1);
+        trans_times = time(trans_inds);
+        dwell_times = [trans_times(2:end); time(end)] - trans_times;
+        end_classes = chan_classes(trans_inds);
+        start_classes = chan_classes(trans_inds - 1);
         
         start_scores = zeros(n_trans, size(chan_scores, 2));
         end_scores = zeros(n_trans, size(chan_scores, 2));
@@ -75,49 +111,37 @@ for kC = 1:n_chans
         end
         
         score_change = end_scores - start_scores;
-        trans_dists{kS} = vecnorm(score_change, 2, 2);
+        trans_dists = vecnorm(score_change, 2, 2);
 
-        % try change in scores that are relevant to the transition
-%         trans_inds = find(b_trans);
-%         start_scores_pre = chan_scores(sub2ind(size(chan_scores), trans_inds-1, start_classes{kS}));
-%         end_scores_pre = chan_scores(sub2ind(size(chan_scores), trans_inds-1, end_classes{kS}));
-%         diff_pre = end_scores_pre - start_scores_pre;
-%         
-%         start_scores_post = chan_scores(sub2ind(size(chan_scores), trans_inds, start_classes{kS}));
-%         end_scores_post = chan_scores(sub2ind(size(chan_scores), trans_inds, end_classes{kS}));
-%         diff_post = end_scores_post - start_scores_post;
-%         
-%         diff_change = diff_post - diff_pre;
-%         trans_dists{kS} = diff_change;
+        % make a table out of it
+        chan_trans{kS} = table(...
+            kC * ones(n_trans, 1), ...
+            repmat(chan_names(kC), n_trans, 1), ...
+            kS * ones(n_trans, 1), ...
+            trans_times, dwell_times, ...
+            trans_dists, start_classes, end_classes, ...
+            zeros(n_trans, 1), zeros(n_trans, 1), ...
+            'VariableNames', ...
+            {'chan', 'chan_name', 'segment', 'time', 'dwell_time', ...
+            'dist', 'start_class', 'end_class', 'chan_pctile', 'pctile'});
     end
     
-    seg_n_trans = cellfun('length', trans_times);
-    n_trans = sum(seg_n_trans);
-    
-    % make a table out of it
-    chan_trans{kC} = table(...
-        kC * ones(n_trans, 1), ...
-        repmat(chan_names(kC), n_trans, 1), ...
-        repelem((1:n_segs)', seg_n_trans), ...
-        cell2mat(trans_times), ...
-        cell2mat(dwell_times), ...
-        cell2mat(trans_dists), ...
-        cell2mat(start_classes), ...
-        cell2mat(end_classes), ...
-        'VariableNames', ...
-        {'chan', 'chan_name', 'segment', 'time', 'dwell_time', 'dist', 'start_class', 'end_class'});
+    all_trans{kC} = vertcat(chan_trans{:});
     
     % get within-channel percentiles
-    [~, order] = sort(chan_trans{kC}.dist);
-    chan_trans{kC}.chan_pctile = zeros(n_trans, 1);
-    chan_trans{kC}.chan_pctile(order) = (0.5:n_trans-0.5) / n_trans;
+    [~, order] = sort(all_trans{kC}.dist);
+    n_trans = height(all_trans{kC});
+    all_trans{kC}.chan_pctile(order) = (0.5:n_trans-0.5) / n_trans;
 end
 
 % combine all and get overall percentile
-transitions = vertcat(chan_trans{:});
-n_trans = height(transitions);
+transitions = vertcat(all_trans{:});
 [~, order] = sort(transitions.dist);
-transitions.pctile = zeros(n_trans, 1);
+n_trans = height(transitions);
 transitions.pctile(order) = (0.5:n_trans-0.5) / n_trans;
 
+% finally, apply filters.
+transitions = util.apply_transition_filters(transitions, time_segs, score_segs, opts.filters);
+
 end
+

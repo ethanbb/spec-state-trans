@@ -116,7 +116,6 @@ function [fh, gausCSD, time_axis, chan_axis, depth_axis] = ...
 
 % get info about the probe
 [num_chans, spacing] = util.get_probe_model_info(probe_model);
-spacing = spacing / 1000; % to mm
 
 % seconds of data per snippet before the stim
 sec_pre = 1;
@@ -126,7 +125,7 @@ sigma = 2;
 support = -ceil(3*sigma):ceil(3*sigma);
 n_edge = (length(support)-1) / 2;
 chan_axis = 1+n_edge:num_chans-n_edge;
-depth_axis = chan_axis * spacing;
+depth_axis = chan_axis * spacing / 1000; % (in mm)
 
 kernel = (-(sigma^2 - support.^2)/(sigma^5*sqrt(2*pi))) .* ...
     exp(-support.^2 / (2*sigma^2));
@@ -142,23 +141,19 @@ gausCSD = gausCSD(chan_axis, time);  % "valid" channels
 b_good_chan = ~any(isnan(gausCSD), 2);
 [X, Y] = meshgrid(time, chan_axis(b_good_chan));
 [Xq, Yq] = meshgrid(time, chan_axis(~b_good_chan));
-gausCSD(~b_good_chan, :) = interp2(X, Y, gausCSD(b_good_chan, :), Xq, Yq);
+gausCSD_interp = gausCSD;
+gausCSD_interp(~b_good_chan, :) = interp2(X, Y, gausCSD(b_good_chan, :), Xq, Yq);
 
 fh = figure;
 ax = axes;
 
-sanePColor(time_axis, depth_axis, gausCSD);
+sanePColor(time_axis, chan_axis, gausCSD_interp);
 axis tight;
 shading interp;
 
 ax.YDir = 'reverse';
-ylim([depth_axis(1), depth_axis(end)]);
-ylabel('Depth (mm)');
-
-yyaxis right;
-ax.YDir = 'reverse';
 ylim([chan_axis(1), chan_axis(end)]);
-ylabel('Channel # (on this probe)');
+ylabel(sprintf('Channel # (%g {\\mu}m per channel)', spacing));
 
 xlabel('Time since stimulus presentation (ms)');
 titlestr = sprintf('CSD for %s', name);
@@ -169,4 +164,5 @@ title(titlestr, 'Interpreter', 'none');
 
 c = colorbar;
 c.Label.String = 'CSD in mV/mm^2';
+
 end

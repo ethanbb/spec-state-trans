@@ -24,6 +24,14 @@ rec_dates = unique(temp(:, 1));
 %% Do CSD
 
 probe_s = struct('Probe1', 'M1', 'Probe2', 'V1');
+
+dead_chans_s = [
+    struct('Probe1', [], 'Probe2', 29)  % 2020-10-26
+    struct('Probe1', 15, 'Probe2', 29)  % 2020-10-27
+    struct('Probe1', [], 'Probe2', 29)  % 2020-10-28
+    struct('Probe1', [], 'Probe2', 29)  % 2020-10-29
+    ];
+
 for kD = 1:length(rec_dates)
     plot_csd(rec_dates{kD}, probe_s);
 end
@@ -38,7 +46,7 @@ layer_names = [
 
 for kD = 1:length(rec_dates)
     uiwait(pick_csd_channels(fullfile(sr_dirs.results, rec_dates{kD}), ...
-        depths_um, layer_names, true));
+        depths_um, layer_names, 'V1', {'M1'}, true));
 end
 
 %% Scan for burst suppression
@@ -70,7 +78,7 @@ rec_mt_info = table(bs_artifacts, cell(n_recs, 1), ...
 
 % channel notes for each day:
 % 10/26 ch. 93 (V1 29) looks somewhat flat/broken
-% 10/27 some HF stuff on ch. 101-106 (V1 37-42), could be noise
+% 10/27 chs. 15 and 93 look bad. some HF stuff on ch. 101-106 (V1 37-42), could be noise
 % 10/28 similar to 10/26 for ch. 93 (V1 29). On 3rd rec, 80, 97, 114 (V1 16, 33, 50) have some weird
 % artifacts.
 % 10/29 looks good.
