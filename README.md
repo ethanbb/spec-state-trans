@@ -36,10 +36,10 @@ See `mt_new_2020_recs.m` followed by `full_analysis_byday.m` for an example.
 
     * **Output:** `<date>/nmf_res.mat`
 
-7a. Compute Euclidean distance between aligned NMF scores of each directed pair of channels (and plot results) with `score_dist_analysis.m`
+7. Compute Euclidean distance between aligned NMF scores of each directed pair of channels (and plot results) with `score_dist_analysis.m`
 
     * **Output:** `<date>/nmf_res.mat`
 
-7b. Get normalized mutual information between discrete classes of each channel using `class_mut_info.m` from `Ethan_misc` (see `full_analysis_byday.m`)
+8. Get normalized mutual information between discrete classes of each channel using `class_mut_info.m` from `Ethan_misc` (see `full_analysis_byday.m`)
 
-7c. Compute a measure of synchrony for each transition and compare to bootstrap with transitions shuffled using `get_state_transitions.m` and `calc_transition_synchrony.m`
+9. Compute a measure of synchrony for each transition and compare to bootstrap with transitions shuffled using `get_state_transitions.m` and `calc_transition_synchrony.m`
