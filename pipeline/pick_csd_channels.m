@@ -1,4 +1,4 @@
-function fh = pick_csd_channels(csd_dir, layers_um, layer_names)
+function fh = pick_csd_channels(csd_dir, layers_um, layer_names, dock_figs)
 % Given a directory containing CSD result csd.fig, display a simple GUI to 
 % identify layer 4 in V1 and other layers relative to it. Defaults to
 % L2/3 (or supergranular), L4, L5 (or infragranular) and L5B (deeper point in infragranular).
@@ -10,6 +10,10 @@ end
 
 if ~exist('layer_names', 'var') || isempty(layer_names)
     layer_names = {'L2/3', 'L4', 'L5', 'L5B'};
+end
+
+if ~exist('dock_figs', 'var') || isempty(dock_figs)
+    dock_figs = false;
 end
 
 [layers_um, layer_ind] = sort(layers_um);
@@ -42,7 +46,9 @@ csd_figs = openfig(fullfile(csd_dir, 'csd.fig'));
 fig_is_V1 = arrayfun(isV1, csd_figs);
 close(csd_figs(~fig_is_V1));
 fh = figure(csd_figs(fig_is_V1));
-fh.WindowStyle = 'docked';
+if dock_figs
+    fh.WindowStyle = 'docked';
+end
 ah = gca;
 ah.OuterPosition(3) = 0.95;
 hold on;

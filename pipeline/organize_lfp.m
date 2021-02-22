@@ -119,7 +119,8 @@ if isstruct(req_chans)
 
         % normalize probe name a bit
         if strncmp(probename, 'ecog', 4)
-            probename = 'grid';
+%             probename = 'grid';
+            probename = 'ecog';
         end
 
         % choose indices based on type of req_chans

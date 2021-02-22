@@ -37,7 +37,8 @@ layer_names = [
     ];
 
 for kD = 1:length(rec_dates)
-    uiwait(pick_csd_channels(fullfile(sr_dirs.results, rec_dates{kD}), depths_um, layer_names));
+    uiwait(pick_csd_channels(fullfile(sr_dirs.results, rec_dates{kD}), ...
+        depths_um, layer_names, true));
 end
 
 %% Scan for burst suppression

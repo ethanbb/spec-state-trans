@@ -1,4 +1,4 @@
-function plot_csd(recdate, probe_s, savedir)
+function plot_csd(recdate, probe_s, bad_chan_s, savedir)
 % Plot and save CSD figure and data for selected date/probes.
 % Inputs:
 %   recdate: The date of interest, e.g. '2020-01-30'.
@@ -7,6 +7,8 @@ function plot_csd(recdate, probe_s, savedir)
 %               Each key is a probe name (e.g. 'Probe1' if 'Probe1Name'
 %                    is in the rec info)
 %               Each value is the associated name/region, e.g. 'V1', 'M1'.
+%   bad_chans: A struct with the same keys as probe_s, with each value a vector of
+%              channel numbers to exclude from the CSD (defaulting to none).
 %   savedir: Where to save everything; defaults to fullfile(sr_dirs.results, recdate).
 %
 % Peaks of the resulting plots should be current *sinks*.
@@ -20,9 +22,17 @@ rectimes = cellfun(@(fn) sscanf(fn, sprintf('snips_%s_%%[^.].mat', recdate)), ..
     fnames, 'uni', false);
 files = fullfile({listing.folder}, fnames);
 n_files = length(files);
+assert(n_files > 0, ['No snippits found on ', recdate]);
 
 probe_names = fieldnames(probe_s);
 n_probes = length(probe_names);
+
+if ~exist('bad_chan_s', 'var') || isempty(bad_chan_s)
+    bad_chan_s = struct;
+    for kP = 1:n_probes
+        bad_chan_s.(probe_names{kP}) = [];
+    end
+end
 
 snips = repmat({cell(n_files, 1)}, n_probes, 1);
 probe_models = cell(n_probes, 1);
@@ -43,7 +53,7 @@ for kF = 1:n_files
         model = ifo.([probe, 'Name']);
         if kF == 1
             probe_models{kP} = model;
-    else
+        else
             assert(strcmp(model, probe_models{kP}), 'Mismatched probe models!');
         end
         
@@ -74,8 +84,10 @@ if n_files > 1
 
         for kP = 1:n_probes
             probe = probe_names{kP};
-            fhs(kP) = plot1csd(mean_snips{kP}{kF}, probe_s.(probe), probe_models{kP}, ...
-                Fs, sprintf('%s_%s', recdate, rectimes{kF}));
+            snips_masked = mean_snips{kP}{kF};
+            snips_masked(bad_chan_s.(probe), :) = nan;
+            fhs(kP) = plot1csd(snips_masked, probe_s.(probe), ...
+                probe_models{kP}, Fs, sprintf('%s_%s', recdate, rectimes{kF}));
         end
 
         savefig(fhs, fullfile(savedir, sprintf('csd_%s.fig', rectimes{kF})));
@@ -90,8 +102,10 @@ mean_snips_combined = cellfun(@(probe_snips) squeeze(mean(probe_snips, 2)), ...
 fhs = gobjects(n_probes, 1);
 for kP = 1:n_probes
     probe = probe_names{kP};
+    snips_masked = mean_snips_combined{kP};
+    snips_masked(bad_chan_s.(probe), :) = nan;
     [fhs(kP), csd, time_axis, chan_axis, depth_axis] = ...
-        plot1csd(mean_snips_combined{kP}, probe_s.(probe), probe_models{kP}, Fs, [recdate ' - all']);
+        plot1csd(snips_masked, probe_s.(probe), probe_models{kP}, Fs, [recdate ' - all']);
     save(fullfile(savedir, ['csd_', probe_s.(probe), '.mat']), 'csd', 'time_axis', 'chan_axis', 'depth_axis');
 end
 savefig(fhs, fullfile(savedir, 'csd.fig'));
@@ -110,6 +124,9 @@ sec_pre = 1;
 % setup for smoothed second spatial derivative
 sigma = 2;
 support = -ceil(3*sigma):ceil(3*sigma);
+n_edge = (length(support)-1) / 2;
+chan_axis = 1+n_edge:num_chans-n_edge;
+depth_axis = chan_axis * spacing;
 
 kernel = (-(sigma^2 - support.^2)/(sigma^5*sqrt(2*pi))) .* ...
     exp(-support.^2 / (2*sigma^2));
@@ -117,18 +134,18 @@ kernel = (-(sigma^2 - support.^2)/(sigma^5*sqrt(2*pi))) .* ...
 time = round(0.9*Fs:1.5*Fs); % 100 ms pre to 500 ms post
 time_axis = time * 1000/Fs - 1000*sec_pre;
 
-gausCSD = convn(chan_data, kernel.', 'valid');
-chans_out = size(gausCSD, 1);
+% do the 2nd spatial derivative
+gausCSD = nanconv(chan_data, kernel.', 'nanout');
+gausCSD = gausCSD(chan_axis, time);  % "valid" channels
 
-chans_removed = num_chans - chans_out;
+% interpolate nans
+b_good_chan = ~any(isnan(gausCSD), 2);
+[X, Y] = meshgrid(time, chan_axis(b_good_chan));
+[Xq, Yq] = meshgrid(time, chan_axis(~b_good_chan));
+gausCSD(~b_good_chan, :) = interp2(X, Y, gausCSD(b_good_chan, :), Xq, Yq);
 
 fh = figure;
 ax = axes;
-
-chan_axis = chans_removed/2 + (1:chans_out);
-depth_axis = chan_axis * spacing;
-
-gausCSD = gausCSD(:, time);
 
 sanePColor(time_axis, depth_axis, gausCSD);
 axis tight;
