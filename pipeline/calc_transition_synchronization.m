@@ -8,6 +8,7 @@ function [transitions, mean_sync] = calc_transition_synchronization(transitions,
 % Source: https://journals.physiology.org/doi/full/10.1152/jn.00848.2014#_i8
 
 transitions.sync_score = zeros(height(transitions), 1);
+transitions.tau = zeros(height(transitions), 1);  % minimum of surrounding dwell times
 
 % treat each segment separately
 segs = unique(transitions.segment);
@@ -21,25 +22,22 @@ for kS = 1:length(segs)
     chans = unique(transitions.chan(b_seg));
     n_chans = length(chans);
     
-    seg_trans_forchan = arrayfun(@(c) transitions(b_seg & transitions.chan == c, :), ...
-        chans, 'uni', false);
+    chan_trans_inds = arrayfun(@(c) find(b_seg & transitions.chan == c), chans, 'uni', false);
     
     % find minimum nearby dwell times for each channel (to later calculuate tau)
-    min_dwells_forchan = cell(n_chans, 1);
     for kC = 1:n_chans
-        dwell_times = seg_trans_forchan{kC}.dwell_time(1:end-1); % only count ones between transitions
-        min_dwells_forchan{kC} = min([inf; dwell_times], [dwell_times; inf]);
+        dwell_times = transitions.dwell_time(chan_trans_inds{kC}(1:end-1));
+        transitions.tau(chan_trans_inds{kC}) = min([inf; dwell_times], [dwell_times; inf]);
     end
 
     % now iterate over channels again and find the synchronization scores
     for kC = 1:n_chans
         % iterate through this channel's transitions, then other chans
-        chan_trans = seg_trans_forchan{kC};
-        n_this = height(chan_trans);
-        sync_scores = zeros(n_this, 1);
+        n_this = length(chan_trans_inds{kC});
         
         for kT = 1:n_this
-            this_time = chan_trans.time(kT);
+            this_ind = chan_trans_inds{kC}(kT);
+            this_time = transitions.time(this_ind);
             
             for kO = 1:n_chans
                 if kO == kC
@@ -47,18 +45,16 @@ for kS = 1:length(segs)
                 end
                 
                 % find nearest transition
-                other_trans = seg_trans_forchan{kO};
-                [nearest_dist, nearest_ind] = min(abs(other_trans.time - this_time));
-                tau = min(min_dwells_forchan{kC}(kT), min_dwells_forchan{kO}(nearest_ind));
+                other_trans_times = transitions.time(chan_trans_inds{kO});
+                [nearest_dist, nearest_ind] = min(abs(other_trans_times - this_time));
+                tau = min(transitions.tau([this_ind, chan_trans_inds{kO}(nearest_ind)])) / 2;
                 
                 if isfinite(tau) && nearest_dist < tau
-                    sync_scores(kT) = sync_scores(kT) + 1/(n_chans_all-1);
+                    transitions.sync_score(this_ind) = transitions.sync_score(this_ind) + ...
+                        1/(n_chans_all-1);
                 end               
             end
         end
-        
-        % put back into original table
-        transitions.sync_score(b_seg & transitions.chan == chans(kC)) = sync_scores;
     end
 end
 

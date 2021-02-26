@@ -48,10 +48,20 @@ bad_chans = chan_axis(any(isnan(csd), 2));
 b_after_stim = time_axis >= 0 & time_axis <= 100;
 time_after_stim = time_axis(b_after_stim);
 csd_after_stim = csd(:, b_after_stim);
-[max_across_chans, maxind_across_chans] = max(csd_after_stim);
-[~, maxind_across_time] = max(max_across_chans);
-max_time = time_after_stim(maxind_across_time);
-l4_chan = s_csd.chan_axis(1, maxind_across_chans(maxind_across_time));
+
+% [max_across_chans, maxind_across_chans] = max(csd_after_stim);
+% [~, maxind_across_time] = max(max_across_chans);
+% try looking at multiple peaks
+[~, maxinds] = extrema2(csd_after_stim);
+maxinds = maxinds(1:3); % just consider the top n
+[max_chan_inds, max_time_inds] = ind2sub(size(csd_after_stim), maxinds);
+[first_max_time_ind, kfirst] = min(max_time_inds);
+first_max_chan_ind = max_chan_inds(kfirst);
+
+% max_time = time_after_stim(maxind_across_time);
+max_time = time_after_stim(first_max_time_ind);
+% l4_chan = s_csd.chan_axis(1, maxind_across_chans(maxind_across_time));
+l4_chan = s_csd.chan_axis(1, first_max_chan_ind);
 
 % Open the figure to allow verification/manual correction if necessary.
 isV1 = @(fig) contains(fig.Children(2).Title.String, main_probe);

@@ -44,8 +44,17 @@ rec_dates = unique(recs_dates_times(:, 2));
 %% Do CSD
 
 probe_s = struct('Probe1', 'V1L', 'Probe2', 'V1R');
-for kD = 1:length(rec_dates)
-    plot_csd(rec_dates{kD}, probe_s);
+
+dead_chans_s = [
+    struct('Probe1', [], 'Probe2', [39, 53])      % 2021-01-27
+    struct('Probe1', [], 'Probe2', [39, 40, 53])  % 2020-01-29
+    struct('Probe1', [], 'Probe2', [39, 53])      % 2020-01-31
+    struct('Probe1', [], 'Probe2', [39, 53])      % 2020-02-01
+    struct('Probe1', 29, 'Probe2', [])            % 2020-02-02
+    ];
+
+for kD = 1%:length(rec_dates)
+    plot_csd(rec_dates{kD}, probe_s, dead_chans_s(kD));
 end
 
 %% Pick channels - L4 and steps of 140 um up and down
@@ -56,10 +65,9 @@ layer_names = [
     arrayfun(@(k) ['Inf', num2str(k)], 1:8, 'uni', false)
     ];
 
-for kD = 1:length(rec_dates)
+for kD = 5:length(rec_dates)
     rec_dir = fullfile(sr_dirs.results, rec_dates{kD});
     for side = 'LR'
-        uiwait(pick_csd_channels(rec_dir, depths_um, layer_names, ...
-            ['V1', side], {}, true));
+        pick_csd_channels(rec_dir, depths_um, layer_names, ['V1', side], {}); %, true);
     end
 end

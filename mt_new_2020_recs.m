@@ -32,8 +32,8 @@ dead_chans_s = [
     struct('Probe1', [], 'Probe2', 29)  % 2020-10-29
     ];
 
-for kD = 1:length(rec_dates)
-    plot_csd(rec_dates{kD}, probe_s);
+for kD = 1%:length(rec_dates)
+    plot_csd(rec_dates{kD}, probe_s, dead_chans_s(kD));
 end
 
 %% Pick channels - L4 and steps of 140 um up and down
@@ -45,8 +45,8 @@ layer_names = [
     ];
 
 for kD = 1:length(rec_dates)
-    uiwait(pick_csd_channels(fullfile(sr_dirs.results, rec_dates{kD}), ...
-        depths_um, layer_names, 'V1', {'M1'}, true));
+    pick_csd_channels(fullfile(sr_dirs.results, rec_dates{kD}), ...
+        depths_um, layer_names, 'V1', {'M1'}, true);
 end
 
 %% Scan for burst suppression

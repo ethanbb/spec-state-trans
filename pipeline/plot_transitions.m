@@ -13,7 +13,7 @@ function plot_transitions(transition_table, color_var, opts, line_opts)
 %   - 'VarLabel' ['Sync score']: Label for the colorbar, if color_var is nonempty.
 %   - 'AxesBgColor':             'Color' property of axes (default is 0.65 gray if using color for
 %                                lines, to make yellows visible)
-%   - 'VarColormapFn' [@jet]:    Function to use to generate the color map for globality
+%   - 'VarColormapFn' [@parula]: Function to use to generate the color map for globality
 %
 % Takes any "line" name-value arguments to change properties of the plotted lines, including
 % 'Parent' which can be used to specify the axis.
@@ -24,8 +24,8 @@ arguments
         = empty_if_var_not_in_table(transition_table, 'sync_score')
     opts.ColorRange double = [0, 1]
     opts.VarLabel (1,:) char = 'Sync score'
-    opts.AxesBgColor = ([1, 1, 1] - (~isempty(color_var)) * 0.35)
-    opts.VarColormapFn function_handle = @jet
+    opts.AxesBgColor = ([1, 1, 1] - (~isempty(color_var)) * 0.25)
+    opts.VarColormapFn function_handle = @parula
     line_opts.?matlab.graphics.chart.primitive.Line
 end
 

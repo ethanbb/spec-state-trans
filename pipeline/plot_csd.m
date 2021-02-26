@@ -132,17 +132,21 @@ kernel = (-(sigma^2 - support.^2)/(sigma^5*sqrt(2*pi))) .* ...
 
 time = round(0.9*Fs:1.5*Fs); % 100 ms pre to 500 ms post
 time_axis = time * 1000/Fs - 1000*sec_pre;
+chan_data = chan_data(:, time);
 
 % do the 2nd spatial derivative
 gausCSD = nanconv(chan_data, kernel.', 'nanout');
-gausCSD = gausCSD(chan_axis, time);  % "valid" channels
+gausCSD = gausCSD(chan_axis, :);  % "valid" channels
 
-% interpolate nans
-b_good_chan = ~any(isnan(gausCSD), 2);
-[X, Y] = meshgrid(time, chan_axis(b_good_chan));
-[Xq, Yq] = meshgrid(time, chan_axis(~b_good_chan));
-gausCSD_interp = gausCSD;
-gausCSD_interp(~b_good_chan, :) = interp2(X, Y, gausCSD(b_good_chan, :), Xq, Yq);
+% do a version for display that interpolates over nans
+bad_chans = find(any(isnan(chan_data), 2));
+good_chans = setdiff(1:num_chans, bad_chans);
+[X, Y] = meshgrid(time, good_chans);
+[Xq, Yq] = meshgrid(time, bad_chans);
+chan_data_interp = chan_data;
+chan_data_interp(bad_chans, :) = interp2(X, Y, chan_data(good_chans, :), Xq, Yq);
+
+gausCSD_interp = convn(chan_data_interp, kernel.', 'valid');
 
 fh = figure;
 ax = axes;

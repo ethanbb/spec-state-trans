@@ -19,7 +19,7 @@ n_days = length(days);
 csd_dirs = fullfile(sr_dirs.results, days);
 
 for kD = 1:n_days
-    uiwait(pick_csd_channels(csd_dirs{kD}, [], [], 'V1', {'MC'}, true));
+    pick_csd_channels(csd_dirs{kD}, [], [], 'V1', {'MC'}, true);
 end
 
 
