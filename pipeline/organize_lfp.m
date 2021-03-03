@@ -49,7 +49,9 @@ end
 
 if in_ds(data_s, 'meanSubFullTrace')
     lfp_field = 'meanSubFullTrace';
-elseif in_ds(data_s, 'meanSubData') % for "snippits"
+elseif in_ds(data_s, 'dataSnippits')
+    lfp_field = 'dataSnippits';
+elseif in_ds(data_s, 'meanSubData') % also for "snippits"
     lfp_field = 'meanSubData';
 else
     assert(in_ds(data_s, 'LFPData'), 'LFP data not found in loaded dataset.');

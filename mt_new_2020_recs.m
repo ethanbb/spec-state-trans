@@ -32,7 +32,7 @@ dead_chans_s = [
     struct('Probe1', [], 'Probe2', 29)  % 2020-10-29
     ];
 
-for kD = 1%:length(rec_dates)
+for kD = 1:length(rec_dates)
     plot_csd(rec_dates{kD}, probe_s, dead_chans_s(kD));
 end
 
@@ -64,7 +64,7 @@ for kR = 1:n_recs
     bs_artifacts{kR} = bs_segments;
 
     % plot using eeglab to check
-%     lfp = organize_lfp(data_mfile, 1:8:128);
+%     lfp = organize_lfp(data_mfile, 1:8:n);
 %     eegplot(lfp, 'srate', 1000, 'winlength', 20);
 end
 
