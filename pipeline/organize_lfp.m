@@ -1,4 +1,4 @@
-function [lfp_organized, chans_used] = organize_lfp(data_s, req_chans, noise_inds, need_data)
+function [lfp_organized, chans_used] = organize_lfp(data_s, req_chans, noise_inds, need_data, b_snippits)
 % Returns a nchan x ntime LFP matrix with channels in data_s reordered according to
 % map in data_s. The input can also be a matfile object.
 %
@@ -28,6 +28,8 @@ function [lfp_organized, chans_used] = organize_lfp(data_s, req_chans, noise_ind
 %
 % If need_data is false, lfp_organized will be empty and only the second output will be returned.
 %
+% b_snippits is a boolean indicating whether 3D trial data is requested (default false).
+%
 % The first output is the concatenated channels selected from each probe, in the order
 % the fields are listed in the struct (or the requested order if req_chans is a vector) 
 %
@@ -47,16 +49,21 @@ else
     in_ds = @isprop;
 end
 
-if in_ds(data_s, 'meanSubFullTrace')
-    lfp_field = 'meanSubFullTrace';
-elseif in_ds(data_s, 'dataSnippits')
-    lfp_field = 'dataSnippits';
-elseif in_ds(data_s, 'meanSubData') % also for "snippits"
-    lfp_field = 'meanSubData';
+if ~exist('b_snippits', 'var') || ~b_snippits
+    if in_ds(data_s, 'meanSubFullTrace')
+        lfp_field = 'meanSubFullTrace';
+    else
+        assert(in_ds(data_s, 'LFPData'), 'LFP data not found in loaded dataset.');
+        warning('Input appears to be raw data - may contain artifacts, noise, etc.');
+        lfp_field = 'LFPData';
+    end
 else
-    assert(in_ds(data_s, 'LFPData'), 'LFP data not found in loaded dataset.');
-    warning('Input appears to be raw data - may contain artifacts, noise, etc.');
-    lfp_field = 'LFPData';
+    if in_ds(data_s, 'dataSnippits')
+        lfp_field = 'dataSnippits';
+    else
+        assert(in_ds(data_s, 'meanSubData'), 'Snippit data not found in loaded dataset.');
+        lfp_field = 'meanSubData';
+    end
 end
 
 % find what indices we have
@@ -177,7 +184,7 @@ for kP = 1:n_probes
     chans_used.(name) = chans;
 end
 
-if ~exist('need_data', 'var') || need_data
+if ~exist('need_data', 'var') || isempty(need_data) || need_data
     lfp_all = data_s.(lfp_field); % for mfile
     lfp_organized = lfp_all(indices_to_use, :, :);
 else
