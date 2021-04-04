@@ -109,7 +109,7 @@ for kE = 1:length(exp_info)
     end
     
     % Take median and make combined plot
-    med_mut_info = nanmedian(mut_info_combined, 3);
+    med_mut_info = median(mut_info_combined, 3, 'omitnan');
     
     % eliminate channels with no data
     chans_empty = all(isnan(med_mut_info)) & all(isnan(med_mut_info'));
@@ -203,7 +203,7 @@ for kE = 1:length(exp_info)
         all_dists_null(insert_inds, insert_inds, kD) = this_mfile.allL2_dists_null;
     end
 
-    med_dists = nanmedian(all_dists, 3);
+    med_dists = median(all_dists, 3, 'omitnan');
 
     % eliminate channels with no data
     chans_empty = all(isnan(med_dists)) & all(isnan(med_dists'));
@@ -217,7 +217,7 @@ for kE = 1:length(exp_info)
     savefig(hf, fullfile(sr_dirs.results, 'res_figs', sprintf('med_kl_div_%s.fig', this_info.type)));
     
     % Same thing but with difference from null model
-    med_dists_from_null = nanmedian(all_dists_null - all_dists, 3);
+    med_dists_from_null = median(all_dists_null - all_dists, 3, 'omitnan');
     hf = plot_dist_mat(med_dists_from_null, chan_names, ...
         sprintf('%s (median)', replace(this_info.type, '_', '\_')), 'L2_dist_from_null');
     savefig(hf, fullfile(sr_dirs.results, 'res_figs', sprintf('med_kl_div_fromnull_%s.fig', this_info.type)));
