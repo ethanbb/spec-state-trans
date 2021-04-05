@@ -40,6 +40,7 @@ n_recs = n_base_recs + n_stim_recs;
 
 recs_dates_times = [rec_names, split(rec_names, '_')];
 rec_dates = unique(recs_dates_times(:, 2));
+n_dates = length(rec_dates);
 
 %% Scan for burst suppression
 
@@ -71,19 +72,21 @@ rec_mt_info = table(bs_artifacts, cell(n_recs, 1), ...
 
 probe_s = struct('Probe1', 'V1L', 'Probe2', 'V1R');
 
-dead_chans_s = [
-%     struct('Probe1', [39, 40, 53], 'Probe2', [23, 24, 30, 31]) % 2021-01-25
-    struct('Probe1', [], 'Probe2', [39, 53])      % 2021-01-27
-    struct('Probe1', [], 'Probe2', [39, 40, 53])  % 2020-01-29
-    struct('Probe1', [], 'Probe2', [39, 53])      % 2020-01-31
-    struct('Probe1', [], 'Probe2', [39, 53])      % 2020-02-01
-    struct('Probe1', 29, 'Probe2', [])            % 2020-02-02
-    ];
+bad_chans_t = table(struct('Probe1', cell(n_dates, 1), 'Probe2', cell(n_dates, 1)), ...
+    'VariableNames', {'bad_chans'}, 'RowNames', rec_dates);
+
+common_bad_r_chan_dates = {'2021-01-27', '2021-01-29', '2021-01-31'};
+for kD = 1:length(common_bad_r_chan_dates)
+    bad_chans_t.bad_chans(common_bad_r_chan_dates{kD}).Probe2 = [39, 53];
+end
+
+bad_chans_t.bad_chans('2021-01-29').Probe2(end+1) = 40;
+bad_chans_t.bad_chans('2021-02-02').Probe1 = 29;
 
 stim_event_chan_s = struct('Probe1', 2, 'Probe2', 1);
 
 for kD = 1:length(rec_dates)
-    plot_csd(rec_dates{kD}, probe_s, dead_chans_s(kD), [], rec_mt_info, stim_event_chan_s);
+    plot_csd(rec_dates{kD}, probe_s, bad_chans_t.bad_chans(kD), [], rec_mt_info, stim_event_chan_s);
 end
 
 %% Pick channels - L4 and steps of 140 um up and down
@@ -157,9 +160,10 @@ rec_mt_info.artifacts{'2021-01-31_15-41-00'} = [
 for kR = 1:n_recs
     %% Do low-resolution analysis first
     rec_name = rec_names{kR};
-    data_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', rec_name)));
+    rec_date = rec_mt_info.date{rec_name};
+    rec_time = rec_mt_info.time{rec_name};
     
-    save_dir = fullfile(sr_dirs.results, rec_mt_info.date{rec_name}, rec_mt_info.time{rec_name});
+    data_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', rec_name)));
     
     options = struct;
     options.artifacts = rec_mt_info.artifacts{rec_name};
@@ -184,7 +188,21 @@ for kR = 1:n_recs
     options.padbase = 60;
     options.winstep = 0.1;
     options.save = true;
-    options.savedir = save_dir;
+    options.savedir = fullfile(sr_dirs.results, rec_date, rec_time);
     options.filename = 'mt_res_layers.mat';
     mt_res = multitaper_analysis(data_mfile, options);
+
+    %% Version with CSDs
+    options.window = 6;
+    options.padbase = 60;
+    options.winstep = 0.1;
+    options.save = true;
+    options.filename = 'mt_res_layers.mat';
+    options.use_csd = true;
+    options.bad_chans = bad_chans_t.bad_chans(rec_date);
+    options.savedir = fullfile(sr_dirs.results, [rec_date, '_csd'], rec_time);
+
+    raw_mfile = matfile(fullfile(sr_dirs.raw, rec_date, 'matlab', [rec_name, '.mat']));
+
+    multitaper_analysis(raw_mfile, options);
 end

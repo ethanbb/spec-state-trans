@@ -4,35 +4,53 @@
 
 sr_dirs = prepSR;
 
-exp_info = [struct('type', 'm1_v1', 'days', {{
-%         '2020-01-30'
-%         '2020-01-31'
-%         '2020-02-06'
-%         '2020-03-05'
-%         '2020-03-06'
-%         '2020-03-10'
-%         '2020-03-11'
-        % not using any of the above - short probe recordings
-        '2020-10-26'
-        '2020-10-27'
-        '2020-10-28'
-        '2020-10-29'
-    }})
-    struct('type', 'bilateral', 'days', {{
-        '2021-01-27'
-        '2021-01-29'
-        '2021-01-31'
-        '2021-02-02'
-    }})];
-
 % set up full channel name lists for analyses later
 layer_names = [
-    arrayfun(@(k) ['Sup', num2str(k)], 8:-1:1, 'uni', false), {'L4'}, ...
-    arrayfun(@(k) ['Inf', num2str(k)], 1:8, 'uni', false)
-    ];
+    arrayfun(@(k) strcat("Sup", num2str(k)), (8:-1:1)')
+    "L4"
+    arrayfun(@(k) strcat("Inf", num2str(k)), (1:8)')
+];
 
-exp_info(1).all_chan_names = [strcat('M1_', layer_names), strcat('V1_', layer_names)];
-exp_info(2).all_chan_names = [strcat('V1L_', layer_names), strcat('V1R_', layer_names)];
+make_layer_names = @(regions) reshape(string(regions(:)') + "_" + layer_names, [], 1);
+
+exp_info = [
+    struct('type', 'm1_v1', 'all_chan_names', make_layer_names(["M1", "V1"]), ...
+        'days', {{
+%             '2020-01-30'
+%             '2020-01-31'
+%             '2020-02-06'
+%             '2020-03-05'
+%             '2020-03-06'
+%             '2020-03-10'
+%             '2020-03-11'
+            % not using any of the above - short probe recordings
+            '2020-10-26'
+            '2020-10-27'
+            '2020-10-28'
+            '2020-10-29'
+        }})
+    struct('type', 'bilateral', 'all_chan_names', make_layer_names(["V1L", "V1R"]), ...
+        'days', {{
+            '2021-01-27'
+            '2021-01-29'
+            '2021-01-31'
+            '2021-02-02'
+        }})
+    struct('type', 'm1_v1_csd', 'all_chan_names', make_layer_names(["M1", "V1"]), ...
+        'days', {{
+            '2020-10-26_csd'
+            '2020-10-27_csd'
+            '2020-10-28_csd'
+            '2020-10-29_csd'
+        }})
+    struct('type', 'bilateral_csd', 'all_chan_names', make_layer_names(["V1L", "V1R"]), ...
+        'days', {{
+            '2021-01-27_csd'
+            '2021-01-29_csd'
+            '2021-01-31_csd'
+            '2021-02-02_csd'
+        }})
+    ];
 
 exp_types = {exp_info.type};
 all_days = vertcat(exp_info.days);
@@ -72,9 +90,6 @@ nmf_mfiles = concat_and_nmf(input_s_all);
 
 %% Make null model data
 gen_null_model_data(nmf_mfiles);
-
-%% Do KL divergence analysis
-% score_dist_analysis(nmf_mfiles, 'kl_div');
 
 %% Euclidean distance analysis of aligned scores
 score_dist_analysis(nmf_mfiles, 'L2_dist');
@@ -182,97 +197,129 @@ end
 
 %% Get and plot median score distance for each channel pair
 
+chan_names = cell(length(exp_info), 1);
+all_dists = cell(length(exp_info), 1);
+all_dists_null = cell(length(exp_info), 1);
+
 for kE = 1:length(exp_info)
     this_info = exp_info(kE);
     this_ndays = length(this_info.days);
     nmf_res_paths = {this_info.input_s.nmf_res_out}';
     nmf_res_mfiles = cellfun(@matfile, nmf_res_paths, 'uni', false);
 
-    chan_names = this_info.all_chan_names;
-    n_chans = length(chan_names);
+    chan_names{kE} = this_info.all_chan_names;
+    n_chans = length(chan_names{kE});
 
     % gather distance information from each recording
-    all_dists = nan(n_chans, n_chans, this_ndays);
-    all_dists_null = nan(n_chans, n_chans, this_ndays);
+    all_dists{kE} = nan(n_chans, n_chans, this_ndays);
+    all_dists_null{kE} = nan(n_chans, n_chans, this_ndays);
 
     for kD = 1:this_ndays
-        insert_inds = cellfun(@(c) find(strcmp(chan_names, c)), nmf_res_mfiles{kD}.chan_names);
+        insert_inds = cellfun(@(c) find(strcmp(chan_names{kE}, c)), nmf_res_mfiles{kD}.chan_names);
 
         this_mfile = nmf_res_mfiles{kD};
-        all_dists(insert_inds, insert_inds, kD) = this_mfile.allL2_dists;
-        all_dists_null(insert_inds, insert_inds, kD) = this_mfile.allL2_dists_null;
+        all_dists{kE}(insert_inds, insert_inds, kD) = this_mfile.allL2_dists;
+        all_dists_null{kE}(insert_inds, insert_inds, kD) = this_mfile.allL2_dists_null;
     end
 
-    med_dists = nanmedian(all_dists, 3);
+    med_dists = nanmedian(all_dists{kE}, 3);
 
     % eliminate channels with no data
     chans_empty = all(isnan(med_dists)) & all(isnan(med_dists'));
-    chan_names = chan_names(~chans_empty);
+    chan_names{kE} = chan_names{kE}(~chans_empty);
     med_dists = med_dists(~chans_empty, ~chans_empty);
-    all_dists = all_dists(~chans_empty, ~chans_empty, :);
-    all_dists_null = all_dists_null(~chans_empty, ~chans_empty, :);
+    all_dists{kE} = all_dists{kE}(~chans_empty, ~chans_empty, :);
+    all_dists_null{kE} = all_dists_null{kE}(~chans_empty, ~chans_empty, :);
 
-    hf = plot_dist_mat(med_dists, chan_names, ...
-        sprintf('%s - median over %d days', replace(this_info.type, '_', '\_'), this_ndays), 'L2_dist');
-    savefig(hf, fullfile(sr_dirs.results, 'res_figs', sprintf('med_kl_div_%s.fig', this_info.type)));
+    % make human-readable channel names
+    hr_chan_names = util.make_hr_chan_names(chan_names{kE}, 140);
+
+    hf = plot_dist_mat(med_dists, hr_chan_names, ...
+        sprintf('%s - median over %d days', this_info.type, this_ndays), 'L2_dist');
+    savefig(hf, fullfile(sr_dirs.results, 'res_figs', sprintf('med_score_dist_%s.fig', this_info.type)));
     
     % Same thing but with difference from null model
-    med_dists_from_null = nanmedian(all_dists_null - all_dists, 3);
-    hf = plot_dist_mat(med_dists_from_null, chan_names, ...
-        sprintf('%s (median)', replace(this_info.type, '_', '\_')), 'L2_dist_from_null');
-    savefig(hf, fullfile(sr_dirs.results, 'res_figs', sprintf('med_kl_div_fromnull_%s.fig', this_info.type)));
+    med_dists_from_null = nanmedian(all_dists_null{kE} - all_dists{kE}, 3);
+    hf = plot_dist_mat(med_dists_from_null, hr_chan_names, ...
+        sprintf('%s (median)', this_info.type), 'L2_dist_from_null');
+    savefig(hf, fullfile(sr_dirs.results, 'res_figs', sprintf('med_score_dist_fromnull_%s.fig', this_info.type)));
 end
 
-%% **** Below here is old - to be updated ****
-
 %% make a graph plot out of it
-med_kl_div_from_null_nonnan = med_dists_from_null;
-med_kl_div_from_null_nonnan(isnan(med_dists_from_null)) = 0;
-g = digraph(med_dists_from_null, 'omitselfloops');
-ecolors = 5 * g.Edges.Weight / max(g.Edges.Weight);
-edge_labels = arrayfun(@(w) sprintf('%.2f', w), g.Edges.Weight, 'uni', false);
-
-hf_graph = figure;
-plot(g, 'EdgeCData', ecolors, 'EdgeColor', 'flat', 'NodeLabel', chans, ... 'EdgeLabel', edge_labels, ...
-     'Interpreter', 'none', 'NodeFontSize', 12, 'NodeFontWeight', 'bold', 'Layout', 'layered', ...
-     'Direction', 'right', 'Sources', 1:length(chans)/2, 'Sinks', length(chans)/2+1:length(chans));
-
-title(sprintf('Synchrony of channel pairs\n(bits below null model KL divergence)'));
-colorbar;
-savefig(hf_graph, fullfile(sr_dirs.results, 'res_figs', 'med_kl_div_fromnull_graphplot.fig'));
+% med_kl_div_from_null_nonnan = med_dists_from_null;
+% med_kl_div_from_null_nonnan(isnan(med_dists_from_null)) = 0;
+% g = digraph(med_dists_from_null, 'omitselfloops');
+% ecolors = 5 * g.Edges.Weight / max(g.Edges.Weight);
+% edge_labels = arrayfun(@(w) sprintf('%.2f', w), g.Edges.Weight, 'uni', false);
+%
+% hf_graph = figure;
+% plot(g, 'EdgeCData', ecolors, 'EdgeColor', 'flat', 'NodeLabel', chans, ... 'EdgeLabel', edge_labels, ...
+%      'Interpreter', 'none', 'NodeFontSize', 12, 'NodeFontWeight', 'bold', 'Layout', 'layered', ...
+%      'Direction', 'right', 'Sources', 1:length(chans)/2, 'Sinks', length(chans)/2+1:length(chans));
+%
+% title(sprintf('Synchrony of channel pairs\n(bits below null model KL divergence)'));
+% colorbar;
+% savefig(hf_graph, fullfile(sr_dirs.results, 'res_figs', 'med_kl_div_fromnull_graphplot.fig'));
 
 %% Make violin plot
 
-types = {'Same channel', 'Same region', 'Cross-region'};
+types = {'Single channel replication', 'Within region', 'Across regions'};
 type_snames = cellfun(@matlab.lang.makeValidName, types, 'uni', false);
 n_types = length(types);
 
-linear_inds = cell(n_types, 1);
-linear_inds{1} = find(eye(n_chans));
-linear_inds{2} = find(blkdiag(ones(n_chans/2), ones(n_chans/2)) - eye(n_chans));
-linear_inds{end} = setdiff(1:n_chans^2, vertcat(linear_inds{1:end-1}));
-
-kl_divs_bytype = struct;
-kl_divs_null_bytype = struct;
-
-for kT = 1:n_types
-    %mean_kldiv_oftype = @(mat) mean(mat(linear_inds{kT}));
+for kE = 1:length(exp_info)
+    this_chan_names = chan_names{kE};
+    n_chans = length(this_chan_names);
+    this_regions = strtok(this_chan_names, '_');
+    same_region = this_regions == this_regions';
     
-    kl_divs_perday = cellfun(@(mat) mat(linear_inds{kT}), num2cell(all_dists, [1, 2]), 'uni', false);
-    kl_divs_bytype.(type_snames{kT}) = vertcat(kl_divs_perday{:});
+    % get indices of each type of pair
+    linear_inds = cell(n_types, 1);
+    linear_inds{1} = find(eye(n_chans));
+    linear_inds{2} = setdiff(find(same_region), linear_inds{1});
+    linear_inds{3} = find(~same_region);
+
+    dists_bytype = struct;
+    dists_null_bytype = struct;
+    dists_frac_of_null = struct;
     
-    kl_divs_null_perday = cellfun(@(mat) mat(linear_inds{kT}), num2cell(all_dists_null, [1, 2]), 'uni', false);
-    kl_divs_null_bytype.(type_snames{kT}) = vertcat(kl_divs_null_perday{:});
+    for kT = 1:n_types
+        %mean_kldiv_oftype = @(mat) mean(mat(linear_inds{kT}));
+        tname = type_snames{kT};
+
+        dists_perday = cellfun(@(mat) mat(linear_inds{kT}), num2cell(all_dists{kE}, [1, 2]), 'uni', false);
+        dists_bytype.(tname) = vertcat(dists_perday{:});
+
+        dists_null_perday = cellfun(@(mat) mat(linear_inds{kT}), num2cell(all_dists_null{kE}, [1, 2]), 'uni', false);
+        dists_null_bytype.(tname) = vertcat(dists_null_perday{:});
+
+        dists_frac_of_null.(tname) = dists_bytype.(tname) ./ dists_null_bytype.(tname);
+    end
+
+%     hf = figure; hold on;
+%     viol1 = violinplot(dists_bytype, [], 'ViolinColor', [1, 0, 0]);
+%     viol2 = violinplot(dists_null_bytype, [], 'ViolinColor', [0.5, 0.5, 0.5]);
+%     legend([viol1(1).ViolinPlot, viol2(1).ViolinPlot], 'Real data', 'Markov-chain generated', 'Location', 'southeast');
+%     xticklabels(types);
+%     ylabel('Euclidean score distance');
+%
+%     title({'Euclidean distance of aligned NMF scores between pairs of channels', ...
+%         exp_info(kE).type}, 'Interpreter', 'none');
+%
+%     savefig(hf, fullfile(sr_dirs.results, 'res_figs', ...
+%         sprintf('score_dist_violin_%s.fig', exp_info(kE).type)));
+
+    hf = figure;
+    viol = violinplot(dists_frac_of_null);
+    xticklabels(types);
+    ylabel('Score distance (frac. of null model)');
+    title({'Euclidean distance of aligned NMF scores, compared to null model', ...
+        exp_info(kE).type}, 'Interpreter', 'none');
+    savefig(hf, fullfile(sr_dirs.results, 'res_figs', ...
+        sprintf('dist_vs_null_violin_%s.fig', exp_info(kE).type)));
+
+    [h, p] = ttest2(dists_frac_of_null.(type_snames{3}), dists_frac_of_null.(type_snames{2}), ...
+        0.01, 'right');
+
+    fprintf('%s: p = %g\n', exp_info(kE).type, p);
 end
-
-hf = figure; hold on;
-viol1 = violinplot(kl_divs_bytype, [], 'ViolinColor', [1, 0, 0]);
-viol2 = violinplot(kl_divs_null_bytype, [], 'ViolinColor', [0.5, 0.5, 0.5]);
-legend([viol1(1).ViolinPlot, viol2(1).ViolinPlot], 'Real data', 'Markov-chain generated', 'Location', 'southeast');
-xticklabels(types);
-ylabel('KL divergence (bits)');
-
-title({'Mean KL divergence of aligned NMF scores between pairs of channels,', ...
-    'with second channel either real data or resampled based on discrete Markov chain'});
-
-savefig(hf, fullfile(sr_dirs.results, 'res_figs', 'kl_div_withnull_violin.fig'));

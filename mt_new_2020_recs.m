@@ -20,20 +20,24 @@ n_recs = length(rec_names);
 temp = split(rec_names, '_');
 recs_dates_times = [rec_names, temp];
 rec_dates = unique(temp(:, 1));
+n_dates = length(rec_dates);
 
-%% Do CSD
+%% Do CSD of LED trials
 
 probe_s = struct('Probe1', 'M1', 'Probe2', 'V1');
 
-dead_chans_s = [
-    struct('Probe1', [], 'Probe2', 29)  % 2020-10-26
-    struct('Probe1', 15, 'Probe2', 29)  % 2020-10-27
-    struct('Probe1', [], 'Probe2', 29)  % 2020-10-28
-    struct('Probe1', [], 'Probe2', 29)  % 2020-10-29
-    ];
+bad_chans_t = table(struct('Probe1', cell(n_dates, 1), 'Probe2', cell(n_dates, 1)), ...
+    'VariableNames', {'bad_chans'}, 'RowNames', rec_dates);
 
-for kD = 1:length(rec_dates)
-    plot_csd(rec_dates{kD}, probe_s, dead_chans_s(kD));
+bad_chans_t.bad_chans('2020-10-27').Probe1 = 15;
+
+% all days had channel 29 bad on V1 (Probe2)
+for kD = 1:n_dates
+    bad_chans_t.bad_chans(kD).Probe2 = 29;
+end
+
+for kD = 1:n_dates
+    plot_csd(rec_dates{kD}, probe_s, bad_chans_t.bad_chans(kD));
 end
 
 %% Pick channels - L4 and steps of 140 um up and down
@@ -44,7 +48,7 @@ layer_names = [
     arrayfun(@(k) ['Inf', num2str(k)], 1:8, 'uni', false)
     ];
 
-for kD = 1:length(rec_dates)
+for kD = 1:n_dates
     pick_csd_channels(fullfile(sr_dirs.results, rec_dates{kD}), ...
         depths_um, layer_names, 'V1', {'M1'}, true);
 end
@@ -68,7 +72,7 @@ for kR = 1:n_recs
 %     eegplot(lfp, 'srate', 1000, 'winlength', 20);
 end
 
-%% Do multitaper (based on results of pick_channels_from_csd.m)
+%% Make info table and manual adjustments to artifacts & channels
 
 rec_mt_info = table(bs_artifacts, cell(n_recs, 1), ...
     struct('Probe1', cell(n_recs, 1), 'Probe2', cell(n_recs, 1)), ...
@@ -83,7 +87,7 @@ rec_mt_info = table(bs_artifacts, cell(n_recs, 1), ...
 % artifacts.
 % 10/29 looks good.
 % fill in channels based on CSD (at least initially)
-for kD = 1:length(rec_dates)
+for kD = 1:n_dates
     date = rec_dates{kD};
     b_rec = strcmp(rec_mt_info.date, date);
     
@@ -154,22 +158,25 @@ rec_mt_info.artifacts{'2020-10-29_16-07-00'} = [
     7004, 7017  % cross-channel
     ];
 
-%% Loop through recordings
+
+%% Finally do multitaper - loop through recordings
 for kR = 1:n_recs
     %% Do low-resolution analysis first
     rec_name = rec_names{kR};
+    rec_date = rec_mt_info.date{rec_name};
+    rec_time = rec_mt_info.time{rec_name};
+    
     data_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', rec_name)));
-    
-    save_dir = fullfile(sr_dirs.results, rec_mt_info.date{rec_name}, rec_mt_info.time{rec_name});
-    
+
     options = struct;
     options.artifacts = rec_mt_info.artifacts{rec_name};
     options.chan_names = rec_mt_info.chan_names{rec_name};
     options.chans = rec_mt_info.chans(rec_name);
     options.save = false;
+
  
     %%
-    mt_res_lores = multitaper_analysis(data_mfile, options);
+%     mt_res_lores = multitaper_analysis(data_mfile, options);
     
 %     % (example code to inspect results - modify as necessary)
 %     plot_options = struct;
@@ -185,8 +192,21 @@ for kR = 1:n_recs
     options.padbase = 60;
     options.winstep = 0.1;
     options.save = true;
-    options.savedir = save_dir;
+    options.savedir = fullfile(sr_dirs.results, rec_date, rec_time);
     options.filename = 'mt_res_layers.mat';
     mt_res = multitaper_analysis(data_mfile, options);
-    
+
+    %% Version with CSDs
+    options.window = 6;
+    options.padbase = 60;
+    options.winstep = 0.1;
+    options.save = true;
+    options.filename = 'mt_res_layers.mat';
+    options.use_csd = true;
+    options.bad_chans = bad_chans_t.bad_chans(rec_date);
+    options.savedir = fullfile(sr_dirs.results, [rec_date, '_csd'], rec_time);
+
+    raw_mfile = matfile(fullfile(sr_dirs.raw, rec_date, 'matlab', [rec_name, '.mat']));
+
+    multitaper_analysis(raw_mfile, options);
 end

@@ -46,19 +46,23 @@ switch dist_type
         error('Unrecognized matrix type');
 end
 
+if strcmp(interpreter, 'latex')
+    title_line2 = strrep(title_line2, '_', '\_');
+end
+
 if nargin < 3 || isempty(title_line2)
     title(title_line1, 'Interpreter', interpreter);
 else
     title({title_line1, title_line2}, 'Interpreter', interpreter);
 end
 
+chans = strrep(chans, '_', '\_');
+
 xticks(1:length(chans));
 xticklabels(chans);
 xtickangle(45);
 yticks(1:length(chans));
 yticklabels(chans);
-
-set(gca, 'TickLabelInterpreter', 'none');
 
 ylabel('Channel i');
 xlabel('Channel j');

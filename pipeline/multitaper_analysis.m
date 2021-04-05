@@ -18,6 +18,8 @@ function res = multitaper_analysis(data_s, options)
 opts = struct(...
    'chans',      [16, 48],       ... channel numbers to analyze (default = middle channel from each region)
    'chan_names', {{'M1', 'V1'}}, ...
+   'use_csd',    false,          ... whether to use csd of the LFP. Channels on the edge may be excluded.
+   'bad_chans',  struct,         ... struct with probe names as names of noise channels (only used if use_csd is true)
    'artifacts',  [],             ... k x 2 list or k-length cell of [start, end] of artifacts, in seconds
    'n_tapers',   17,             ... number of tapers
    'window',     60,             ... window length (sec)
@@ -41,12 +43,44 @@ for kO = 1:length(opts_in)
 end
 
 % get LFP of requested channels
-Fs = data_s.finalSampR;
-lfp_organized = organize_lfp(data_s, opts.chans);
+if opts.use_csd
+    % get channels taken from each probes first (make sure it's in struct form)
+    [~, opts.chans] = organize_lfp(data_s, opts.chans, [], false);
+    probes_used = fieldnames(opts.chans);
+    n_probes = length(probes_used);
+
+    lfp_organized = cell(n_probes, 1);
+    b_rm_chans = cell(n_probes, 1);
+    for kP = 1:length(probes_used)
+        probename = probes_used{kP};
+        probe_chans = opts.chans.(probename);
+        all_probe_data = organize_lfp(data_s, struct(probename, 'all'));
+
+        bad_chans = [];
+        if isfield(opts.bad_chans, probename)
+            bad_chans = opts.bad_chans.(probename);
+        end
+
+        % do csd
+        [lfp_csd, valid_chans] = util.calc_kernel_csd(all_probe_data, bad_chans, false, false);
+
+        % eliminate channels on the edge
+        b_rm_chans{kP} = ~ismember(probe_chans(:), valid_chans(:));
+        opts.chans.(probename)(b_rm_chans{kP}) = [];
+        lfp_organized{kP} = lfp_csd(opts.chans.(probename), :);
+    end
+    lfp_organized = cell2mat(lfp_organized);
+    b_rm_chans = cell2mat(b_rm_chans);
+    opts.chan_names(b_rm_chans) = [];
+else
+    lfp_organized = organize_lfp(data_s, opts.chans);
+end
+
 % also get channel locations now while we're at it
 res.chan_locs = get_channel_locs(data_s, opts.chans);
 
 [n_chans, len] = size(lfp_organized);
+Fs = data_s.finalSampR;
 len_secs = len / Fs;
 
 % derive pad from padbase if necessary

@@ -7,8 +7,8 @@ function plot_csd(recdate, probe_s, bad_chan_s, savedir, artifact_table, stim_ev
 %               Each key is a probe name (e.g. 'Probe1' if 'Probe1Name'
 %                    is in the rec info)
 %               Each value is the associated name/region, e.g. 'V1', 'M1'.
-%   bad_chans: A struct with the same keys as probe_s, with each value a vector of
-%              channel numbers to exclude from the CSD (defaulting to none).
+%   bad_chan_s: A struct with the same keys as probe_s, with each value a vector of
+%               channel numbers to exclude from the CSD (defaulting to none).
 %   savedir: Where to save everything; defaults to fullfile(sr_dirs.results, recdate).
 %   artifact_table: If not empty, table containing n_artifacts x 2 matrix of artifact times to
 %                   exclude (in s) in variable 'artifacts', with recording names as the row names.
@@ -108,9 +108,8 @@ if n_files > 1
 
         for kP = 1:n_probes
             probe = probe_names{kP};
-            snips_masked = mean_snips{kP}{kF};
-            snips_masked(bad_chan_s.(probe), :) = nan;
-            fhs(kP) = plot1csd(snips_masked, probe_s.(probe), probe_models{kP}, Fs, recnames{kF});
+            fhs(kP) = plot1csd(mean_snips{kP}{kF}, bad_chan_s.(probe), probe_s.(probe), ...
+                probe_models{kP}, Fs, recnames{kF});
         end
 
         savefig(fhs, fullfile(savedir, sprintf('csd_%s.fig', rectimes{kF})));
@@ -125,58 +124,36 @@ mean_snips_combined = cellfun(@(probe_snips) squeeze(mean(probe_snips, 2)), ...
 fhs = gobjects(n_probes, 1);
 for kP = 1:n_probes
     probe = probe_names{kP};
-    snips_masked = mean_snips_combined{kP};
-    snips_masked(bad_chan_s.(probe), :) = nan;
     [fhs(kP), csd, time_axis, chan_axis, depth_axis] = ...
-        plot1csd(snips_masked, probe_s.(probe), probe_models{kP}, Fs, [recdate ' - all']);
+        plot1csd(mean_snips_combined{kP}, bad_chan_s.(probe), probe_s.(probe), ...
+        probe_models{kP}, Fs, [recdate ' - all']);
     save(fullfile(savedir, ['csd_', probe_s.(probe), '.mat']), 'csd', 'time_axis', 'chan_axis', 'depth_axis');
 end
 savefig(fhs, fullfile(savedir, 'csd.fig'));
 end
 
 function [fh, gausCSD, time_axis, chan_axis, depth_axis] = ...
-    plot1csd(chan_data, name, probe_model, Fs, title_note)
-
-% get info about the probe
-[num_chans, spacing] = util.get_probe_model_info(probe_model);
+    plot1csd(chan_data, bad_chans, name, probe_model, Fs, title_note)
 
 % seconds of data per snippet before the stim
 sec_pre = 1;
-
-% setup for smoothed second spatial derivative
-sigma = 2;
-support = -ceil(3*sigma):ceil(3*sigma);
-n_edge = (length(support)-1) / 2;
-chan_axis = 1+n_edge:num_chans-n_edge;
-depth_axis = chan_axis * spacing / 1000; % (in mm)
-
-kernel = (-(sigma^2 - support.^2)/(sigma^5*sqrt(2*pi))) .* ...
-    exp(-support.^2 / (2*sigma^2));
 
 time = round(0.9*Fs:1.5*Fs); % 100 ms pre to 500 ms post
 time_axis = time * 1000/Fs - 1000*sec_pre;
 chan_data = chan_data(:, time);
 
-% do the 2nd spatial derivative
-gausCSD = nanconv(chan_data, kernel.', 'nanout');
-gausCSD = gausCSD(chan_axis, :);  % "valid" channels
+% get csd with interpolation
+[gausCSD_interp, chan_axis] = util.calc_kernel_csd(chan_data, bad_chans, true, true);
 
-% do a version for display that interpolates over nans
-bad_chans = find(any(isnan(chan_data), 2));
-good_chans = setdiff(1:num_chans, bad_chans);
+% put nans on the bad channels for the output
+gausCSD = gausCSD_interp;
+gausCSD(ismember(chan_axis, bad_chans), :) = nan;
 
-if ~isempty(good_chans)
-    [X, Y] = meshgrid(time, good_chans);
-    [Xq, Yq] = meshgrid(time, bad_chans);
-    chan_data_interp = chan_data;
-    chan_data_interp(bad_chans, :) = interp2(X, Y, chan_data(good_chans, :), Xq, Yq);
+% get info about the probe
+[~, spacing] = util.get_probe_model_info(probe_model);
+depth_axis = chan_axis * spacing / 1000; % (in mm)
 
-    gausCSD_interp = convn(chan_data_interp, kernel.', 'valid');
-else
-    % no good channels! (e.g. all artifacts)
-    gausCSD_interp = gausCSD;
-end
-
+% make plot
 fh = figure;
 ax = axes;
 
