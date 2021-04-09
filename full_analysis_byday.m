@@ -185,10 +185,15 @@ for kE = 1:length(exp_info)
                 
         % compute mutual information
         classes_cell = this_mfile.nmf_classes;
-        % just use run 1 of 2 (arbitrarily)
-        classes_cell = classes_cell{1};
-        classes = horzcat(classes_cell{:});
-        [~, norm_mut_info] = class_mut_info(classes);
+%         % just use run 1 of 2 (arbitrarily)
+%         classes_cell = classes_cell{1};
+%         classes = horzcat(classes_cell{:});
+%         [~, norm_mut_info] = class_mut_info(classes);
+        % actually use both runs
+        % since MI is symmetric, doesn't matter which run is which argument
+        classes_a = horzcat(classes_cell{1}{:});
+        classes_b = horzcat(classes_cell{2}{:});
+        [~, norm_mut_info] = class_mut_info(classes_a, classes_b);
         
         % plot mutual information
         this_hr_chan_names = util.make_hr_chan_names(this_chans, 140);
