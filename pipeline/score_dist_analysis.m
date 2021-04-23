@@ -151,7 +151,7 @@ for kF = 1:n_files
         
         res_mfile.([set_name, '_chans']) = set_chan_names;
         
-        %% Plot KL divergence
+        %% Plot distance matrix
         mfile_dir = fileparts(res_mfile.Properties.Source);
         
         hf = plot_dist_mat(dist, set_chan_names, ...

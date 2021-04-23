@@ -42,6 +42,12 @@ switch dist_type
         title_line1 = 'Norm. mut. info. of classes between channels';
         interpreter = 'none';
         cmap = 'jet';
+    case 'trans_sync_scores'
+        title_line1 = 'Transition mean sync scores between channel scores';
+        interpreter = 'none';
+    case 'cca_mean_r'
+        title_line1 = 'Mean canonical correlation of scores';
+        interpreter = 'none';
     otherwise
         error('Unrecognized matrix type');
 end
