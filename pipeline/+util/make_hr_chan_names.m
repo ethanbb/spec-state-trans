@@ -12,15 +12,16 @@ hr_chan_names = chan_names;
 for kC = 1:length(chan_names)
     layer_name = region_layer(kC, 2);
     if layer_name == "L4"
-        hr_chan_names{kC} = strrep(hr_chan_names{kC}, '_', ' ');
+%         hr_chan_names{kC} = strrep(hr_chan_names{kC}, '_', ' ');
+        hr_chan_names{kC} = '0 (L4)';
     else
         supnum = sscanf(layer_name, 'Sup%d');
         infnum = sscanf(layer_name, 'Inf%d');
         
         if ~isempty(supnum)
-            hr_chan_names{kC} = ['+', num2str(spacing * supnum), '{\mu}m'];
+            hr_chan_names{kC} = ['+', num2str(spacing * supnum)]; %, '{\mu}m'];
         elseif ~isempty(infnum)
-            hr_chan_names{kC} = ['-', num2str(spacing * infnum), '{\mu}m'];
+            hr_chan_names{kC} = ['-', num2str(spacing * infnum)]; %, '{\mu}m'];
         else
             error('Layer name not understood - not L4, Sup or Inf');
         end

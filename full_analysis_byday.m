@@ -181,9 +181,6 @@ for kE = 1:length(exp_info)
 
     % Plot median and 95% CI of bootstrap CDFs with error bars
     boot_cdf_quantiles = quantile(cdf_trans_boot, [0.025, 0.5, 0.975]);
-%     neg = boot_cdf_quantiles(2,:) - boot_cdf_quantiles(1, :);
-%     pos = boot_cdf_quantiles(3,:) - boot_cdf_quantiles(2,:);
-%     errorbar(cdf_interp_vals, boot_cdf_quantiles(2,:), neg, pos, '.-');
     xconf = [cdf_interp_vals, cdf_interp_vals(end:-1:1)];
     yconf = [boot_cdf_quantiles(3, :), boot_cdf_quantiles(1, end:-1:1)];
     plot(cdf_interp_vals, boot_cdf_quantiles(2, :), 'r');
@@ -206,8 +203,6 @@ mut_info_combined = cell(length(exp_info), 1);
 mut_info_boot = cell(length(exp_info), 1);
 all_cca = cell(length(exp_info), 1);
 all_cca_boot = cell(length(exp_info), 1);
-% all_dists_null = cell(length(exp_info), 1);
-% all_recon_err = cell(length(exp_info), 1);
 all_pair_sync_scores = cell(length(exp_info), 1);
 all_pair_sync_scores_boot = cell(length(exp_info), 1);
 bootstrap_rstates = cell(length(exp_info), 1);
@@ -227,7 +222,6 @@ for kE = 1:length(exp_info)
     mut_info_boot{kE} = nan(n_chans, n_chans, this_ndays, n_bootstrap);
     all_cca{kE} = nan(n_chans, n_chans, this_ndays);
     all_cca_boot{kE} = nan(n_chans, n_chans, this_ndays, n_bootstrap);
-%     all_recon_err{kE} = nan(n_chans, n_chans, this_ndays);
     all_pair_sync_scores{kE} = nan(n_chans, n_chans, this_ndays);
     all_pair_sync_scores_boot{kE} = nan(n_chans, n_chans, this_ndays, n_bootstrap);
     bootstrap_rstates{kE} = cell(this_ndays, 1);
@@ -239,11 +233,7 @@ for kE = 1:length(exp_info)
                 
         % compute mutual information
         classes = this_mfile.nmf_classes;
-%         % just use run 1 of 2 (arbitrarily)
-%         classes_cell = classes_cell{1};
-%         classes = horzcat(classes_cell{:});
-%         [~, norm_mut_info] = class_mut_info(classes);
-        % actually use both runs
+
         % since MI is symmetric, doesn't matter which run is which argument
         classes_a = horzcat(classes{1}{:});
         classes_b = horzcat(classes{2}{:});
@@ -257,9 +247,6 @@ for kE = 1:length(exp_info)
         % save data to 3D array
         insert_inds = cellfun(@(c) find(strcmp(all_chan_names{kE}, c)), this_chans);
         mut_info_combined{kE}(insert_inds, insert_inds, kD) = norm_mut_info;
-%         all_dists{kE}(insert_inds, insert_inds, kD) = this_mfile.allL2_dists;
-%         all_dists_null{kE}(insert_inds, insert_inds, kD) = this_mfile.allL2_dists_null;
-%         all_recon_err{kE}(insert_inds, insert_inds, kD) = this_mfile.allL2_dist_recon_err;
         all_cca{kE}(insert_inds, insert_inds, kD) = this_mfile.all_cca_sim;
         all_pair_sync_scores{kE}(insert_inds, insert_inds, kD) = pair_sync_scores{kE}{kD};
         all_pair_sync_scores_boot{kE}(insert_inds, insert_inds, kD, :) = ...
@@ -306,9 +293,6 @@ for kE = 1:length(exp_info)
     hr_chan_names{kE} = hr_chan_names{kE}(nonempty_chans);
     mut_info_combined{kE} = mut_info_combined{kE}(nonempty_chans, nonempty_chans, :);
     mut_info_boot{kE} = mut_info_boot{kE}(nonempty_chans, nonempty_chans, :, :);
-%     all_dists{kE} = all_dists{kE}(nonempty_chans, nonempty_chans, :);
-%     all_dists_null{kE} = all_dists_null{kE}(nonempty_chans, nonempty_chans, :);
-%     all_recon_err{kE} = all_recon_err{kE}(nonempty_chans, nonempty_chans, :);
     all_cca{kE} = all_cca{kE}(nonempty_chans, nonempty_chans, :);
     all_cca_boot{kE} = all_cca_boot{kE}(nonempty_chans, nonempty_chans, :, :);
     all_pair_sync_scores{kE} = all_pair_sync_scores{kE}(nonempty_chans, nonempty_chans, :);
@@ -329,8 +313,10 @@ for kE = 1:length(exp_info)
     % matrix plot
     med_mut_info = median(mut_info_combined{kE}, 3, 'omitnan');
     fh = plot_dist_mat(med_mut_info, hr_chan_names{kE}, ...
-        sprintf('%s, median over %d days', this_info.type, this_ndays), 'norm_mutual_info');
+        sprintf('%s, median over %d days', this_info.type, this_ndays), ...
+        'norm_mutual_info', [], all_chan_names{kE});
     savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_nmi_%s.fig', this_info.type)));
+    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_nmi_%s.svg', this_info.type)));
     
     % violin plot
     fh = make_violin(mut_info_combined{kE}, all_chan_names{kE}, {
@@ -338,11 +324,19 @@ for kE = 1:length(exp_info)
         'SameRegionL4', 'SameRegionNonL4', ...
         'CrossRegionL4', 'CrossRegionNonL4'
         }, {
-        'Within region', 'Across regions', ...
-        'Within, pairs with L4', 'Within, no L4', ...
-        'Across, pairs with L4', 'Across, no L4'
+        'Within Region', 'Across Regions', ...
+        {'Within Region,', 'Including L4'}, ...
+        {'Within Region,', 'Excluding L4'}, ...
+        {'Across Regions,', 'Including L4'}, ...
+        {'Across Regions,', 'Excluding L4'}
         });
-    xtickangle(20);
+    fh.Position(3) = 950;
+    
+    % add dotted line separating plots
+    hold on;
+    myylims = get(gca, 'YLim');
+    plot([2.5, 2.5], myylims, 'k--');
+    
     ylabel('Normalized MI');
     title(sprintf('Normalized mutual information of channel classes (%s)', this_info.type), ...
         'Interpreter', 'none');
@@ -368,6 +362,7 @@ for kE = 1:length(exp_info)
     delete(hs(pvals >= 0.05, :));
     
     savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('nmi_violin_%s.fig', this_info.type)));
+    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('nmi_violin_%s.svg', this_info.type)));
 end
 
 %% CCA combined plots
@@ -379,8 +374,10 @@ for kE = 1:length(exp_info)
     % matrix plot
     med_cca = median(all_cca{kE}, 3, 'omitnan');    
     fh = plot_dist_mat(med_cca, hr_chan_names{kE}, ...
-        sprintf('%s - median over %d days', this_info.type, this_ndays), 'cca_mean_r');
+        sprintf('%s - median over %d days', this_info.type, this_ndays), ...
+        'cca_mean_r', [], all_chan_names{kE});
     savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_cca_r_%s.fig', this_info.type)));
+    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_cca_r_%s.svg', this_info.type)));
     
     % violin plot
     fh = make_violin(all_cca{kE}, all_chan_names{kE}, {
@@ -388,11 +385,19 @@ for kE = 1:length(exp_info)
         'SameRegionL4', 'SameRegionNonL4', ...
         'CrossRegionL4', 'CrossRegionNonL4'
         }, {
-        'Within region', 'Across regions', ...
-        'Within, pairs with L4', 'Within, no L4', ...
-        'Across, pairs with L4', 'Across, no L4'
+        'Within Region', 'Across Regions', ...
+        {'Within Region,', 'Including L4'}, ...
+        {'Within Region,', 'Excluding L4'}, ...
+        {'Across Regions,', 'Including L4'}, ...
+        {'Across Regions,', 'Excluding L4'}
         });
-    xtickangle(20);
+    fh.Position(3) = 950;
+    
+    % add dotted line separating plots
+    hold on;
+    myylims = get(gca, 'YLim');
+    plot([2.5, 2.5], myylims, 'k--');
+    
     ylabel('Mean CCA r');
     title(sprintf('Canonical correlation of channel NMF scores (%s)', this_info.type), ...
         'Interpreter', 'none');
@@ -418,6 +423,7 @@ for kE = 1:length(exp_info)
     delete(hs(pvals >= 0.05, :));
     
     savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('cca_violin_%s.fig', this_info.type)));
+    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('cca_violin_%s.svg', this_info.type)));
 end
 
 %% Transition pair synchrony combined plots
@@ -429,8 +435,10 @@ for kE = 1:length(exp_info)
     % matrix plot
     med_sync = median(all_pair_sync_scores{kE}, 3, 'omitnan');    
     fh = plot_dist_mat(med_sync, hr_chan_names{kE}, ...
-        sprintf('%s - median over %d days', this_info.type, this_ndays), 'trans_sync_scores');
+        sprintf('%s - median over %d days', this_info.type, this_ndays), ...
+        'trans_sync_scores', [], all_chan_names{kE});
     savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_trans_sync_%s.fig', this_info.type)));
+    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_trans_sync_%s.svg', this_info.type)));
     
     % violin plot
     fh = make_violin(all_pair_sync_scores{kE}, all_chan_names{kE}, {
@@ -438,11 +446,19 @@ for kE = 1:length(exp_info)
         'SameRegionL4', 'SameRegionNonL4', ...
         'CrossRegionL4', 'CrossRegionNonL4'
         }, {
-        'Within region', 'Across regions', ...
-        'Within, pairs with L4', 'Within, no L4', ...
-        'Across, pairs with L4', 'Across, no L4'
+        'Within Region', 'Across Regions', ...
+        {'Within Region,', 'Including L4'}, ...
+        {'Within Region,', 'Excluding L4'}, ...
+        {'Across Regions,', 'Including L4'}, ...
+        {'Across Regions,', 'Excluding L4'}
         });
-    xtickangle(20);
+    fh.Position(3) = 950;
+
+    % add dotted line separating plots
+    hold on;
+    myylims = get(gca, 'YLim');
+    plot([2.5, 2.5], myylims, 'k--');
+    
     ylabel('Mean SYNC score');
     title(sprintf('Synchronization of channel class transitions (%s)', this_info.type), ...
         'Interpreter', 'none');
@@ -468,6 +484,7 @@ for kE = 1:length(exp_info)
     delete(hs(pvals >= 0.05, :));
     
     savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('trans_sync_violin_%s.fig', this_info.type)));
+    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('trans_sync_violin_%s.svg', this_info.type)));
 end
 
 %% Finally, save
@@ -581,7 +598,8 @@ vals_bytype = structfun(@(v) v(~isnan(v)), vals_bytype, 'uni', false);
 end
 
 function [hf, vs] = make_violin(mats_over_days, chan_names, category_snames, category_hr_names)
-% sname = struct name, hr_name = human-readable name
+% sname = struct name, hr_name = human-readable name (cells),
+% use cell of char vecs or string array for multiline
 
 violin_colors = struct(...
     'SameChannel', [0.5 0.5 0.5], ...
@@ -607,7 +625,16 @@ end
 
 hf = figure;
 vs = violinplot(violin_s);
-xticklabels(category_hr_names);
+% xticklabels(category_hr_names);
+
+% use manual text labels to avoid tex markup and uneditable text
+xticklabels([]);
+ca = gca;
+for k = 1:length(category_hr_names)
+    labeltext = join(string(category_hr_names{k}), newline);
+    text(k, ca.YLim(1), labeltext, 'HorizontalAlignment', 'center', ...
+        'VerticalAlignment', 'top');
+end
 
 for kV = 1:nplots
     vs(kV).ViolinColor = my_colors(kV, :);
