@@ -8,5 +8,6 @@
 # Windows crap
 **/Thumbs.db
 
-# Figures I might not want to upload
 figs/
+res_figs/*
+!res_figs/README.md
