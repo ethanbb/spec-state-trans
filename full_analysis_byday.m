@@ -88,8 +88,8 @@ input_s_all = vertcat(exp_info.input_s);
 %% Do NMF
 nmf_mfiles = concat_and_nmf(input_s_all);
 
-%% Make null model data
-gen_null_model_data(nmf_mfiles);
+%% Make null model data (currently doing bootstrap runs later instead)
+% gen_null_model_data(nmf_mfiles);
 
 %% Euclidean distance analysis of aligned scores
 % score_dist_analysis(nmf_mfiles, 'L2_dist');
@@ -97,105 +97,10 @@ gen_null_model_data(nmf_mfiles);
 %% Use CCA instead
 score_cca(nmf_mfiles);
 
-%% Transition synchrony analysis
+%% Construct matrices of mutual information and canonical correlation, with bootsrap versions
 
 n_bootstrap = 1000;
 cdf_interp_vals = 0:0.01:1;
-
-pair_sync_scores = cell(length(exp_info), 1);
-pair_sync_scores_boot = cell(length(exp_info), 1);
-
-for kE = 1:length(exp_info)
-    this_info = exp_info(kE);
-    this_ndays = length(this_info.days);
-    trans_tables = cell(this_ndays, 1);
-    pair_sync_scores{kE} = cell(this_ndays, 1);
-    pair_sync_scores_boot{kE} = cell(this_ndays, 1);
-    
-    day_chan_names = cell(this_ndays, 1);
-    cum_trans_interp = zeros(1, length(cdf_interp_vals));
-    for kD = 1:this_ndays
-        this_day = this_info.input_s(kD).name;
-        mt_paths = this_info.input_s(kD).mt_res_in;
-        nmf_path = this_info.input_s(kD).nmf_res_out;
-        nmf_matfile = matfile(nmf_path);
-        day_chan_names{kD} = nmf_matfile.chan_names;
-        
-        trans_tables{kD} = get_state_transitions(mt_paths, nmf_path);
-
-        % add SPIKE-Sync score
-        trans_tables{kD} = calc_transition_synchronization(trans_tables{kD});
-        
-        % add to unnormalized CDF
-        n_chans = length(day_chan_names{kD});
-        cum_edges = 0:1/n_chans:1;
-        cum_vals = 0:1/(n_chans-1):1;
-        cum_trans = histcounts(trans_tables{kD}.sync_score, cum_edges, 'Normalization', 'cumcount');
-        cum_trans_interp = cum_trans_interp + interp1(cum_vals, cum_trans, cdf_interp_vals);
-
-        % make individual plot
-        fh = figure;
-        plot_transitions(trans_tables{kD});
-        title(sprintf('Transitions with sync scores - %s', this_info.input_s(kD).name));
-        savefig(fh, fullfile(sr_dirs.results, this_info.days{kD}, ...
-            sprintf('transitions_w_sync_%s.fig', this_info.days{kD})));
-        
-        % also get pairwise mean sync scores    
-        pair_sync_scores{kE}{kD} = calc_pair_sync_scores(trans_tables{kD}, day_chan_names{kD});
-        
-        % make individual plot
-        this_hr_chan_names = util.make_hr_chan_names(day_chan_names{kD}, 140);
-        fh = plot_dist_mat(pair_sync_scores{kE}{kD}, this_hr_chan_names, this_day, 'trans_sync_scores');
-        savefig(fh, fullfile(sr_dirs.results, this_day, sprintf('pair_sync_scores_%s.fig', this_day)));
-    end
-
-    % Make CDF of sync scores and compare to bootstrap
-    fh = figure;
-    cdf_trans = cum_trans_interp / cum_trans_interp(end);
-    plot(cdf_interp_vals, cdf_trans);
-    hold on;
-
-    cum_trans_boot = zeros(n_bootstrap, length(cdf_interp_vals));
-    for kD = 1:this_ndays
-        pair_sync_scores_boot{kE}{kD} = zeros([size(pair_sync_scores{kE}{kD}), n_bootstrap]);
-    end
-    
-    for kB = 1:n_bootstrap
-        shuffled_sync_scores = cell(this_ndays, 1);
-
-        for kD = 1:this_ndays
-            trans_shuffled = shuffle_trans_dwell_times(trans_tables{kD});
-            trans_shuffled_w_sync = calc_transition_synchronization(trans_shuffled);
-            
-            % add to unnormalized CDF
-            n_chans = length(day_chan_names{kD});
-            cum_edges = 0:1/n_chans:1;
-            cum_vals = 0:1/(n_chans-1):1;
-            cum_trans = histcounts(trans_shuffled_w_sync.sync_score, cum_edges, 'Normalization', 'cumcount');
-            cum_trans_boot(kB, :) = cum_trans_boot(kB, :) + interp1(cum_vals, cum_trans, cdf_interp_vals);
-            
-            pair_sync_scores_boot{kE}{kD}(:, :, kB) = calc_pair_sync_scores(trans_shuffled, day_chan_names{kD});
-        end
-    end
-    cdf_trans_boot = cum_trans_boot ./ cum_trans_boot(:, end);
-
-    % Plot median and 95% CI of bootstrap CDFs with error bars
-    boot_cdf_quantiles = quantile(cdf_trans_boot, [0.025, 0.5, 0.975]);
-    xconf = [cdf_interp_vals, cdf_interp_vals(end:-1:1)];
-    yconf = [boot_cdf_quantiles(3, :), boot_cdf_quantiles(1, end:-1:1)];
-    plot(cdf_interp_vals, boot_cdf_quantiles(2, :), 'r');
-    fill(xconf, yconf, 'red', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
-    
-    title(sprintf('Synchronization scores for all days (%s) (%d bootstraps)', ...
-        this_info.type, n_bootstrap), 'Interpreter', 'none');
-    xlabel('Sync score');
-    ylabel('CDF');
-    legend('Real', 'Shuffled', '95% CI', 'Location', 'northwest');
-    savefig(fh, fullfile(sr_dirs.results, 'res_figs', ...
-        sprintf('transition_sync_cdf_boot_%s.fig', this_info.type)));
-end
-
-%% Construct matrices of mutual information and canonical correlation, with bootsrap versions
 
 all_chan_names = cell(length(exp_info), 1); 
 hr_chan_names = cell(length(exp_info), 1); % human-readable
@@ -210,8 +115,6 @@ bootstrap_rstates = cell(length(exp_info), 1);
 for kE = 1:length(exp_info)
     this_info = exp_info(kE);
     this_ndays = length(this_info.days);
-    nmf_res_paths = {this_info.input_s.nmf_res_out}';
-    nmf_res_mfiles = cellfun(@matfile, nmf_res_paths, 'uni', false);
 
     all_chan_names{kE} = this_info.all_chan_names;
     hr_chan_names{kE} = util.make_hr_chan_names(all_chan_names{kE}, 140);
@@ -226,57 +129,105 @@ for kE = 1:length(exp_info)
     all_pair_sync_scores_boot{kE} = nan(n_chans, n_chans, this_ndays, n_bootstrap);
     bootstrap_rstates{kE} = cell(this_ndays, 1);
     
+    cum_trans_interp = zeros(1, length(cdf_interp_vals));
+    cum_trans_boot = zeros(n_bootstrap, length(cdf_interp_vals));
+    
     for kD = 1:this_ndays
         this_day = this_info.input_s(kD).name;
-        this_mfile = nmf_res_mfiles{kD};
+        mt_paths = this_info.input_s(kD).mt_res_in;
+        this_mfile = matfile(this_info.input_s(kD).nmf_res_out, 'Writable', true);
         this_chans = this_mfile.all_chans;
+        this_n_chans = length(this_chans);
                 
+        % compute transition sync scores
+        trans_table = get_state_transitions(mt_paths, this_mfile);
+        trans_table = calc_transition_synchronization(trans_table);
+        
+        % add to unnormalized CDF
+        cum_edges = 0:1/this_n_chans:1;
+        cum_vals = 0:1/(this_n_chans-1):1;
+        cum_trans = histcounts(trans_table.sync_score, cum_edges, 'Normalization', 'cumcount');
+        cum_trans_interp = cum_trans_interp + interp1(cum_vals, cum_trans, cdf_interp_vals);
+        
+        % make individual transition plot
+        fh = figure;
+        plot_transitions(trans_table);
+        title(sprintf('Transitions with sync scores - %s', this_day), 'Interpreter', 'none');
+        savefig(fh, fullfile(sr_dirs.results, this_day, sprintf('transitions_w_sync_%s.fig', this_day)));
+        
+        % also get pairwise mean scores
+        pair_sync_scores = calc_pair_sync_scores(trans_table, this_chans);
+        
+        % make individual pairwise sync score plot
+        this_hr_chan_names = util.make_hr_chan_names(this_chans, 140);
+        fh = plot_dist_mat(pair_sync_scores, this_hr_chan_names, this_day, ...
+            'trans_sync_scores', 'lower_nodiag', this_chans);
+        savefig(fh, fullfile(sr_dirs.results, this_day, sprintf('pair_sync_scores_%s.fig', this_day)));
+        
         % compute mutual information
-        classes = this_mfile.nmf_classes;
+        classes = this_mfile.filtered_classes;
 
-        % since MI is symmetric, doesn't matter which run is which argument
-        classes_a = horzcat(classes{1}{:});
-        classes_b = horzcat(classes{2}{:});
-        [~, norm_mut_info] = class_mut_info(classes_a, classes_b);
+        % use 1st run
+        classes = horzcat(classes{1}{:});
+        [~, norm_mut_info] = class_mut_info(classes);
+        % since this is symmetric and we don't want to duplicate samples,
+        % nan-out the upper triangular part
+        norm_mut_info(1:this_n_chans >= (1:this_n_chans)') = nan;
         
         % plot mutual information
-        this_hr_chan_names = util.make_hr_chan_names(this_chans, 140);
-        fh = plot_dist_mat(norm_mut_info, this_hr_chan_names, this_day, 'norm_mutual_info');
+        fh = plot_dist_mat(norm_mut_info, this_hr_chan_names, this_day, 'norm_mutual_info', ...
+            'lower_nodiag', this_chans);
         savefig(fh, fullfile(sr_dirs.results, this_day, sprintf('norm_mut_info_%s.fig', this_day)));
         
         % save data to 3D array
         insert_inds = cellfun(@(c) find(strcmp(all_chan_names{kE}, c)), this_chans);
         mut_info_combined{kE}(insert_inds, insert_inds, kD) = norm_mut_info;
         all_cca{kE}(insert_inds, insert_inds, kD) = this_mfile.all_cca_sim;
-        all_pair_sync_scores{kE}(insert_inds, insert_inds, kD) = pair_sync_scores{kE}{kD};
-        all_pair_sync_scores_boot{kE}(insert_inds, insert_inds, kD, :) = ...
-            permute(pair_sync_scores_boot{kE}{kD}, [1, 2, 4, 3]);
+        all_pair_sync_scores{kE}(insert_inds, insert_inds, kD) = pair_sync_scores;
         
         % also do bootstraps
-        this_n_chans = length(this_chans);
         nmf_V = this_mfile.nmf_V;
-        trans = this_mfile.nmf_transitions;
+        trans = this_mfile.filtered_transitions;
         models = cell(this_n_chans, 1);
         rstates = cell(n_bootstrap, this_n_chans);
 
         for kB = 1:n_bootstrap
             V_shuffled = cell(this_n_chans, 1);
-            classes_shuffled = zeros(size(classes_a));
+            classes_shuffled = cell(this_n_chans, 1);
 
             for kC = 1:this_n_chans
-                [V_shuffled{kC}, classes_shuffled(:, kC), models{kC}, rstates{kB, kC}] = ...
-                    util.shuffle_scores_markov(nmf_V{1}{kC}, classes{1}{kC}, trans{1}{kC}, models{kC});
+                [V_shuffled{kC}, classes_shuffled{kC}, models{kC}, rstates{kB, kC}] = ...
+                    util.shuffle_scores_markov(nmf_V{1}{kC}, classes(:, kC), trans{1}{kC}, models{kC});
             end
             
+            % mean transition synchrony CDF
+            % make struct to stand in for NMF mfile in get_state_transitions
+            boot_nmf_info = struct;
+            boot_nmf_info.nmf_classes = {classes_shuffled};
+            boot_nmf_info.nmf_V = {V_shuffled};
+            boot_nmf_info.time_axis = this_mfile.time_axis;
+            boot_nmf_info.chan_names = this_mfile.chan_names;
+            boot_trans_table = get_state_transitions(mt_paths, boot_nmf_info, ...
+                struct('save_filtered_classes', false));
+            boot_trans_table = calc_transition_synchronization(boot_trans_table);
+            
+            cum_trans = histcounts(boot_trans_table.sync_score, cum_edges, 'Normalization', 'cumcount');
+            cum_trans_boot(kB, :) = cum_trans_boot(kB, :) + interp1(cum_vals, cum_trans, cdf_interp_vals);
+            
+            % pair sync scores
+            all_pair_sync_scores_boot{kE}(insert_inds, insert_inds, kD, kB) = ...
+                calc_pair_sync_scores(boot_trans_table, this_chans);
+            
             % normalized mutual information
-            [~, mut_info_boot{kE}(insert_inds, insert_inds, kD, kB)] = ...
-                class_mut_info(classes_shuffled, classes_b);
+            [~, nmi_boot] = class_mut_info(horzcat(classes_shuffled{:}));
+            nmi_boot(1:this_n_chans >= (1:this_n_chans)') = nan;
+            mut_info_boot{kE}(insert_inds, insert_inds, kD, kB) = nmi_boot;
             
             % canonical correlation
-            this_cca = zeros(this_n_chans);
+            this_cca = nan(this_n_chans);
             for iC = 1:this_n_chans
-                for jC = 1:this_n_chans
-                    [~, ~, ps] = canoncorr(V_shuffled{iC}, nmf_V{2}{jC});
+                for jC = 1:iC-1
+                    [~, ~, ps] = canoncorr(V_shuffled{iC}, V_shuffled{jC});
                     this_cca(iC, jC) = mean(ps);
                 end
             end
@@ -285,9 +236,34 @@ for kE = 1:length(exp_info)
         bootstrap_rstates{kE}{kD} = rstates;
     end
     
-    % find channels with no data
+    % make transition sync CDF plot (comparison with bootstrap)
+    cdf_trans = cum_trans_interp / cum_trans_interp(end);
+    cdf_trans_boot = cum_trans_boot ./ cum_trans_boot(:, end);
+    
+    fh = figure;
+    plot(cdf_interp_vals, cdf_trans);
+    hold on;
+    
+    % Plot median and 95% CI of bootstrap CDFs with error bars
+    boot_cdf_quantiles = quantile(cdf_trans_boot, [0.025, 0.5, 0.975]);
+    xconf = [cdf_interp_vals, cdf_interp_vals(end:-1:1)];
+    yconf = [boot_cdf_quantiles(3, :), boot_cdf_quantiles(1, end:-1:1)];
+    plot(cdf_interp_vals, boot_cdf_quantiles(2, :), 'r');
+    fill(xconf, yconf, 'red', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+    
+    title(sprintf('Synchronization scores for all days (%s) (%d bootstraps)', ...
+        this_info.type, n_bootstrap), 'Interpreter', 'none');
+    xlabel('Sync score');
+    ylabel('CDF');
+    legend('Real', 'Shuffled', '95% CI', 'Location', 'northwest');
+    savefig(fh, fullfile(sr_dirs.results, 'res_figs', ...
+        sprintf('transition_sync_cdf_boot_%s.fig', this_info.type)));
+    
+    % for matrices - find channels with no data
     nonempty_chan_combos = any(~isnan(mut_info_combined{kE}), 3);
-    nonempty_chans = any(nonempty_chan_combos);
+    nonempty_cols = any(nonempty_chan_combos);
+    nonempty_rows = any(nonempty_chan_combos');
+    nonempty_chans = nonempty_cols | nonempty_rows;
     
     all_chan_names{kE} = all_chan_names{kE}(nonempty_chans);
     hr_chan_names{kE} = hr_chan_names{kE}(nonempty_chans);
@@ -299,10 +275,80 @@ for kE = 1:length(exp_info)
     all_pair_sync_scores_boot{kE} = all_pair_sync_scores_boot{kE}(nonempty_chans, nonempty_chans, :, :);
 end
 
+%% Use bootstraps to compute z-scores
+matrix_data = {mut_info_combined, all_cca, all_pair_sync_scores};
+matrix_zscores = matrix_data;
+boot_data = {mut_info_boot, all_cca_boot, all_pair_sync_scores_boot};
+
+for kV = 1:length(matrix_data)
+    for kE = 1:length(matrix_data{kV})
+        for kD = 1:size(matrix_data{kV}{kE}, 3)
+            mean_boot = mean(boot_data{kV}{kE}(:, :, kD, :), 4);
+            std_boot = std(boot_data{kV}{kE}(:, :, kD, :), 0, 4);
+            matrix_zscores{kV}{kE}(:, :, kD) = (matrix_data{kV}{kE}(:, :, kD) - mean_boot) ./ std_boot;
+        end
+    end
+end
+
+[mut_info_z, cca_z, pair_sync_scores_z] = matrix_zscores{:};
+
 %%
 save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'n_bootstrap', 'all_chan_names', 'hr_chan_names', ...
     'mut_info_combined', 'mut_info_boot', 'all_cca', 'all_cca_boot', ...
-    'all_pair_sync_scores', 'all_pair_sync_scores_boot', 'bootstrap_rstates', '-v7.3');
+    'all_pair_sync_scores', 'all_pair_sync_scores_boot', 'bootstrap_rstates', ...
+    'mut_info_z', 'cca_z', 'pair_sync_scores_z', '-v7.3');
+
+%% Get channel permutation test distributions and p-values for contrasts
+n_perm = 1e7;
+contrasts = {{'SameRegion', 'CrossRegion'}, {'SameRegionNonL4', 'SameRegionL4'}};
+matrix_zscores = {mut_info_z, cca_z, pair_sync_scores_z};
+perm_pvals = zeros(length(matrix_zscores), length(contrasts), length(exp_info));
+
+for kE = 1:length(exp_info)
+    chan_names = all_chan_names{kE};
+    n_chans = length(chan_names);
+    
+    % plan the permutations - without repetition
+    % prefer to plan them ahead unless n_chans is too large
+    if n_chans <= 18
+        perm_ks = [1, 1 + randperm(factorial(n_chans)-1, n_perm)]; % include 1 for the original data
+    else
+        perm_ks = [1, zeros(1, n_perm)];
+    end
+    perm_ks = int64(perm_ks);
+        
+    perm_stats = zeros(length(matrix_zscores), length(contrasts), n_perm+1);
+    for kP = 1:n_perm+1
+        if perm_ks(kP) == 0
+            % generate a new one
+            have_new_perm = false;
+            while ~have_new_perm
+                permutation = randperm(n_chans);
+                k = perm2k(permutation);
+                if ~ismember(k, perm_ks(1:kP-1))
+                    perm_ks(1:kP) = union(perm_ks(1:kP-1), k);
+                    have_new_perm = true;
+                end
+            end
+        else
+            permutation = k2perm(n_chans, perm_ks(kP));
+        end
+        
+        chans_perm = chan_names(permutation);
+        for kD = 1:length(matrix_zscores)
+            z_perm_by_type = util.categorize_pair_data(matrix_zscores{kD}{kE}, chans_perm);
+            for kC = 1:length(contrasts)
+                perm_stats(kD, kC, kP) = mean(z_perm_by_type.(contrasts{kC}{1})) - ...
+                    mean(z_perm_by_type.(contrasts{kC}{2}));
+            end
+        end
+    end
+    real_stats = perm_stats(:, :, 1);
+    perm_stats = perm_stats(:, :, 2:end);
+    
+    % get exact Monte Carlo p-value - explained at https://arxiv.org/pdf/1603.05766.pdf
+    perm_pvals(:, :, kE) = (sum(perm_stats > real_stats, 3) + 1) / (n_perm + 1);
+end
 
 %% Mutual information combined plots
 
@@ -541,7 +587,7 @@ save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'exp_info', '-append');
 %% Function to get pairwise mean sync scores
 function pair_sync_scores = calc_pair_sync_scores(trans_table, chan_names)
 n_chans = length(chan_names);
-pair_sync_scores = zeros(n_chans);
+pair_sync_scores = nan(n_chans);
 
 % get indices of each channel's transitions
 chan_trans_inds = cellfun(@(cn) strcmp(trans_table.chan_name, cn), chan_names, 'uni', false);
@@ -554,48 +600,9 @@ for iC = 1:n_chans
     end
 end
 
-% the matrix should be symmetric & diagonal entries are meaningless
-pair_sync_scores = pair_sync_scores + pair_sync_scores';
-pair_sync_scores(linspace(1, n_chans^2, n_chans)) = nan;
-
 end
 
 %% Functions to make violin plots
-
-function vals_bytype = categorize_pair_data(mats_over_days, chan_names)
-% Take some matrices of data over days (in 3rd dimension) and return struct w/ combined
-% data vectors, with nans removed, in these mutually exclusive categories:
-% 'SameChannel', 'SameRegionL4', 'SameRegionNonL4', 'CrossRegionL4', 'CrossRegionNonL4'
-% Any pair of a channel with itself is 'SameChannel'
-% Any pair where either channel is labeled as L4 is in the corresponding L4 category
-% Other pairs are in the corresponding NonL4 category depending on whether the region is the same.
-
-chan_names = string(chan_names(:));
-n_chans = length(chan_names);
-chan_name_parts = split(chan_names, "_");
-regions = chan_name_parts(:, 1);
-layers = chan_name_parts(:, 2);
-
-layer_isl4 = layers == "L4";
-pair_hasl4 = layer_isl4 | layer_isl4';
-same_region = regions == regions';
-same_channel = logical(eye(n_chans));
-
-% to broadcast along later dimensions
-broadcast_dims = size(mats_over_days, 3:ndims(mats_over_days));
-get_masked_vals = @(mask) mats_over_days(repmat(mask, [1, 1, broadcast_dims]));
-
-vals_bytype.SameChannel = get_masked_vals(same_channel);
-vals_bytype.SameRegionL4 = get_masked_vals(~same_channel & pair_hasl4 & same_region);
-vals_bytype.SameRegionNonL4 = get_masked_vals(~same_channel & ~pair_hasl4 & same_region);
-vals_bytype.CrossRegionL4 = get_masked_vals(~same_channel & pair_hasl4 & ~same_region);
-vals_bytype.CrossRegionNonL4 = get_masked_vals(~same_channel & ~pair_hasl4 & ~same_region);
-vals_bytype.SameRegion = [vals_bytype.SameRegionL4; vals_bytype.SameRegionNonL4];
-vals_bytype.CrossRegion = [vals_bytype.CrossRegionL4; vals_bytype.CrossRegionNonL4];
-
-vals_bytype = structfun(@(v) v(~isnan(v)), vals_bytype, 'uni', false);
-
-end
 
 function [hf, vs] = make_violin(mats_over_days, chan_names, category_snames, category_hr_names)
 % sname = struct name, hr_name = human-readable name (cells),
@@ -614,7 +621,7 @@ violin_colors = struct(...
 assert(length(category_snames) == length(category_hr_names), 'Mismatch in # of categories');
 nplots = length(category_snames);
 
-vals_bytype = categorize_pair_data(mats_over_days, chan_names);
+vals_bytype = util.categorize_pair_data(mats_over_days, chan_names);
 violin_s = struct;
 my_colors = zeros(nplots, 3);
 for kV = 1:nplots
@@ -689,11 +696,12 @@ welch_tval = @(group1, group2) (mean(group1) - mean(group2)) / ...
 tval_fn = @(vals_bytype) welch_tval(vals_bytype.(contrast_group1), vals_bytype.(contrast_group2));
 
 % get real tval
-real_vals_bytype = categorize_pair_data(real_mats, chan_names);
+real_vals_bytype = util.categorize_pair_data(real_mats, chan_names);
 tval_real = tval_fn(real_vals_bytype);
 
 % get permutation tvals
-perm_vals_bytype = cellfun(@(perm_cca) categorize_pair_data(perm_cca, chan_names), num2cell(perm_mats, [1, 2, 3]));
+perm_vals_bytype = cellfun(@(perm_cca) util.categorize_pair_data(perm_cca, chan_names), ...
+    num2cell(perm_mats, [1, 2, 3]));
 tvals_perm = arrayfun(tval_fn, perm_vals_bytype);
 
 p = sum(tvals_perm > tval_real) / size(perm_mats, 4);

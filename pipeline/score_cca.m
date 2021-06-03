@@ -1,4 +1,4 @@
-function score_cca(nmf_res_mfiles, channel_subsets)
+function score_cca(nmf_res_mfiles, channel_subsets, use_separate_runs, do_null)
 % Use canonical correlation analysis to compare NMF scores from pairs of channels.
 % Uses the mean of CCA correlation coefficients as the measure of similarity.
 %
@@ -11,10 +11,21 @@ function score_cca(nmf_res_mfiles, channel_subsets)
 % more than one such set). The corresponding key identifies the set and will be prepended to the
 % saved variables in each matfile, along with the dist_type.
 % The default is to use all channels and the name 'all'.
+% 
+% use_separate_runs is a boolean controlling whether to make a full matrix
+% comparing each channel's scores in NMF run 1 to each channel in run 2 (if true), 
+% or to make a half matrix (lower triangular) using just run 1 and comparing distinct channels.
+% Default is false.
+%
+% do_null is a boolean for whether to make a "null model" version of the matrix. (Requires that
+% gen_null_model_data has been run. If use_separate_runs is false, this means comparing shuffled
+% score matrices to each other.)
 
 arguments
     nmf_res_mfiles (:,1) cell
     channel_subsets (1,1) struct = struct('all', '*')
+    use_separate_runs (1,1) logical = false
+    do_null (1,1) logical = false
 end
 
 set_names = fieldnames(channel_subsets);
@@ -28,9 +39,16 @@ for kF = 1:n_files
     chan_names = res_mfile.chan_names;
     Vs = res_mfile.nmf_V;
     Vis = Vs{1};
-    Vjs = Vs{2};
-    Vs_null = res_mfile.null_V;
-    Vi_null = Vs_null{1};
+    if use_separate_runs
+        Vjs = Vs{2};
+    else
+        Vjs = Vis;
+    end
+    
+    if do_null
+        Vs_null = res_mfile.null_V;
+        Vi_null = Vs_null{1};
+    end
     
     %% Loop over channel sets
     for kS = 1:n_sets
@@ -57,41 +75,70 @@ for kF = 1:n_files
         
         Vis_set = Vis(set_chans);
         Vjs_set = Vjs(set_chans);
-        Vi_null_set = Vi_null(set_chans);
+        if do_null
+            Vi_null_set = Vi_null(set_chans);
+        end
         set_chan_names = chan_names(set_chans);
         
-        cca_sim = zeros(n_chans, n_chans);
-        cca_sim_null = zeros(n_chans, n_chans);
+        cca_sim = nan(n_chans, n_chans);
+        if do_null
+            cca_sim_null = zeros(n_chans, n_chans);
+        end
         
         for iC = 1:n_chans
             Vi_real = Vis_set{iC};
-            Vi_null = Vi_null_set{iC};
+            if do_null
+                Vi_null = Vi_null_set{iC};
+            end
             
-            for jC = 1:n_chans
+            if use_separate_runs
+                n_j = n_chans;
+            else
+                n_j = iC - 1;
+            end
+            
+            for jC = 1:n_j
                 Vj = Vjs_set{jC};
                 [~, ~, ps] = canoncorr(Vi_real, Vj);
                 cca_sim(iC, jC) = mean(ps);
                 
-                [~, ~, ps] = canoncorr(Vi_null, Vj);
-                cca_sim_null(iC, jC) = mean(ps);
+                if do_null
+                    if use_separate_runs
+                        [~, ~, ps] = canoncorr(Vi_null, Vj);
+                    else
+                        [~, ~, ps] = canoncorr(Vi_null, Vi_null_set{jC});
+                    end
+                    cca_sim_null(iC, jC) = mean(ps);
+                end
             end
         end
         
         %% Save
         res_mfile.([set_name, '_cca_sim']) = cca_sim;
-        res_mfile.([set_name, '_cca_sim_null']) = cca_sim_null;
+        if do_null
+            res_mfile.([set_name, '_cca_sim_null']) = cca_sim_null;
+        end
         res_mfile.([set_name, '_chans']) = set_chan_names;
         
         %% Plot matrix of similarity
         mfile_dir = fileparts(res_mfile.Properties.Source);
+        if use_separate_runs
+            plot_type = 'full';
+        else
+            plot_type = 'lower_nodiag';
+        end
         
-        hf = plot_dist_mat(cca_sim, set_chan_names, ...
-            sprintf('%s - %s', run_name, set_name), 'cca_mean_r');
+        set_hr_chan_names = util.make_hr_chan_names(set_chan_names, 140);
+        
+        hf = plot_dist_mat(cca_sim, set_hr_chan_names, ...
+            sprintf('%s - %s', run_name, set_name), 'cca_mean_r', plot_type, set_chan_names);
         savefig(hf, fullfile(mfile_dir, sprintf('cca_%s_%s.fig', run_name, set_name)));
         
-        hf2 = plot_dist_mat(cca_sim_null, set_chan_names, ...
-            sprintf('%s - %s (null model)', run_name, set_name), 'cca_mean_r');
-        savefig(hf2, fullfile(mfile_dir, sprintf('cca_null_%s_%s.fig', run_name, set_name)));
+        if do_null
+            hf2 = plot_dist_mat(cca_sim_null, set_hr_chan_names, ...
+                sprintf('%s - %s (null model)', run_name, set_name), 'cca_mean_r', plot_type, set_chan_names);
+            savefig(hf2, fullfile(mfile_dir, sprintf('cca_null_%s_%s.fig', run_name, set_name)));
+        end
     end
 end
 

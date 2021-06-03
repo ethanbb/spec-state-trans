@@ -16,7 +16,7 @@ function hf = plot_dist_mat(dist_mats, chan_names, title_line2, dist_type, plot_
 %                                       text of each channel name up to the first underscore.
 
 n_chans = length(chan_names);
-assert(all(size(dist_mats, 1:2) == n_chans), 'Mismatch in number channels/names');
+assert(all(size(dist_mats, 1:2) == n_chans), 'Mismatch in number of channels/names');
 
 mean_dist_mat = mean(dist_mats, 3, 'omitnan');
 
@@ -47,6 +47,7 @@ end
 
 hf = figure('Position', [300, 300, 600, 500]);
 sanePColor(mean_dist_mat);
+hold on;
 xlim([cols(1)-0.5, cols(end)+0.5]);
 ylim([rows(1)-0.5, rows(end)+0.5]);
 set(gca, 'YDir', 'reverse');
@@ -85,11 +86,20 @@ switch dist_type
     case 'norm_mutual_info'
         title_line1 = 'Norm. mut. info. of classes between channels';
         interpreter = 'none';
+    case 'norm_mutual_info_z'
+        title_line1= 'NMI of classes between channels - z-score against null model';
+        interpreter = 'none';
     case 'trans_sync_scores'
-        title_line1 = 'Transition mean sync scores between channel scores';
+        title_line1 = 'Discrete class transition mean synchrony';
+        interpreter = 'none';
+    case 'trans_sync_scores_z'
+        title_line1 = 'Discrete class transition synchrony - z-score against null model';
         interpreter = 'none';
     case 'cca_mean_r'
-        title_line1 = 'Mean canonical correlation of scores';
+        title_line1 = 'Mean canonical correlation of NMF scores';
+        interpreter = 'none';
+    case 'cca_z'
+        title_line1 = 'Canonical correlation of NMF scores - z-score against null model';
         interpreter = 'none';
     otherwise
         error('Unrecognized matrix type');
@@ -158,9 +168,22 @@ if exist('chan_names_with_regions', 'var') && ~isempty(chan_names_with_regions)
             make_ytext(mid_pos, curr_reg);
             
             if kC <= rows(end)
+                % dotted line between tick labels
                 ypos_norm = data_to_y_norm(end_pos);
                 annotation('line', ytext_pos_norm - [0.05, 0], [ypos_norm, ypos_norm], ...
                     'LineStyle', ':', 'LineWidth', 1);
+                
+                % heavy line separating regions in plot
+                switch plot_type
+                    case 'full'
+                        sep_x = [cols(1)-0.5, cols(end)+0.5];
+                    case {'upper', 'upper_nodiag'}
+                        sep_x = [end_pos, cols(end)+0.5];
+                    case {'lower', 'lower_nodiag'}
+                        sep_x = [cols(1)-0.5, end_pos];
+                end
+                plot(sep_x, [end_pos, end_pos], 'k', 'LineWidth', 1.5);
+                
                 base_pos_y = end_pos;
             end
         end
@@ -171,9 +194,22 @@ if exist('chan_names_with_regions', 'var') && ~isempty(chan_names_with_regions)
             make_xtext(mid_pos, curr_reg);
             
             if kC <= cols(end)
+                % dotted line between tick labels
                 xpos_norm = data_to_x_norm(end_pos);
                 annotation('line', [xpos_norm, xpos_norm], xtext_pos_norm + [0.01, -0.04], ...
                     'LineStyle', ':', 'LineWidth', 1);
+                
+                % heavy line separating regions in plot
+                switch plot_type
+                    case 'full'
+                        sep_y = [rows(1)-0.5, rows(end)+0.5];
+                    case {'upper', 'upper_nodiag'}
+                        sep_y = [rows(1)-0.5, end_pos];
+                    case {'lower', 'lower_nodiag'}
+                        sep_y = [end_pos, rows(end)+0.5];
+                end
+                plot([end_pos, end_pos], sep_y, 'k', 'LineWidth', 1.5);
+                
                 base_pos_x = end_pos;
             end
         end
