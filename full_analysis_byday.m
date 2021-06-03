@@ -307,31 +307,13 @@ perm_pvals = zeros(length(matrix_zscores), length(contrasts), length(exp_info));
 for kE = 1:length(exp_info)
     chan_names = all_chan_names{kE};
     n_chans = length(chan_names);
-    
-    % plan the permutations - without repetition
-    % prefer to plan them ahead unless n_chans is too large
-    if n_chans <= 18
-        perm_ks = [1, 1 + randperm(factorial(n_chans)-1, n_perm)]; % include 1 for the original data
-    else
-        perm_ks = [1, zeros(1, n_perm)];
-    end
-    perm_ks = int64(perm_ks);
-        
+
     perm_stats = zeros(length(matrix_zscores), length(contrasts), n_perm+1);
     for kP = 1:n_perm+1
-        if perm_ks(kP) == 0
-            % generate a new one
-            have_new_perm = false;
-            while ~have_new_perm
-                permutation = randperm(n_chans);
-                k = perm2k(permutation);
-                if ~ismember(k, perm_ks(1:kP-1))
-                    perm_ks(1:kP) = union(perm_ks(1:kP-1), k);
-                    have_new_perm = true;
-                end
-            end
+        if kP == 1
+            permutation = 1:n_chans;
         else
-            permutation = k2perm(n_chans, perm_ks(kP));
+            permutation = randperm(n_chans);
         end
         
         chans_perm = chan_names(permutation);
@@ -346,7 +328,8 @@ for kE = 1:length(exp_info)
     real_stats = perm_stats(:, :, 1);
     perm_stats = perm_stats(:, :, 2:end);
     
-    % get exact Monte Carlo p-value - explained at https://arxiv.org/pdf/1603.05766.pdf
+    % get conservative p_u which should be fine for our # of possible permutations
+    % explained at https://arxiv.org/pdf/1603.05766.pdf
     perm_pvals(:, :, kE) = (sum(perm_stats > real_stats, 3) + 1) / (n_perm + 1);
 end
 
