@@ -1,4 +1,4 @@
-function [V_shuffled, classes_shuffled, model, rstate] = shuffle_scores_markov(V, classes, transitions, model, shuffle)
+function [V_shuffled, classes_shuffled, model, rseed] = shuffle_scores_markov(V, classes, transitions, model, shuffle)
 % Shuffle NMF scores using discrete-time markov chain (for one bootstrap iteration)
 % V is an N x k score matrix
 % Classes is a vector of N discrete classes
@@ -7,7 +7,9 @@ function [V_shuffled, classes_shuffled, model, rstate] = shuffle_scores_markov(V
 % Shuffle - if false, don't shuffle the rng state.
 
 if ~exist('shuffle', 'var') || shuffle
-    rstate = rng('shuffle');
+    rng('shuffle');
+    rstate = rng;
+    rseed = rstate.Seed;
 end
 
 if ~exist('model', 'var') || isempty(model)
