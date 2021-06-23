@@ -131,12 +131,12 @@ for kF = 1:n_files
         set_hr_chan_names = util.make_hr_chan_names(set_chan_names, 140);
         
         hf = plot_dist_mat(cca_sim, set_hr_chan_names, ...
-            sprintf('%s - %s', run_name, set_name), 'cca_mean_r', plot_type, set_chan_names);
+            sprintf('%s - %s', run_name, set_name), 'cca', plot_type, set_chan_names);
         savefig(hf, fullfile(mfile_dir, sprintf('cca_%s_%s.fig', run_name, set_name)));
         
         if do_null
             hf2 = plot_dist_mat(cca_sim_null, set_hr_chan_names, ...
-                sprintf('%s - %s (null model)', run_name, set_name), 'cca_mean_r', plot_type, set_chan_names);
+                sprintf('%s - %s (null model)', run_name, set_name), 'cca', plot_type, set_chan_names);
             savefig(hf2, fullfile(mfile_dir, sprintf('cca_null_%s_%s.fig', run_name, set_name)));
         end
     end

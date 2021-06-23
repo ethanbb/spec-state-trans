@@ -95,7 +95,7 @@ switch dist_type
     case 'trans_sync_scores_z'
         title_line1 = 'Discrete class transition synchrony - z-score against null model';
         interpreter = 'none';
-    case 'cca_mean_r'
+    case 'cca'
         title_line1 = 'Mean canonical correlation of NMF scores';
         interpreter = 'none';
     case 'cca_z'

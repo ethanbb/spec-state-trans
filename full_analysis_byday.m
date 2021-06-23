@@ -52,7 +52,7 @@ exp_info = [
         }})
     ];
 
-exp_types = {exp_info.type};
+exp_types = {exp_info.type}';
 all_days = vertcat(exp_info.days);
 
 n_days = length(all_days);
@@ -88,29 +88,23 @@ input_s_all = vertcat(exp_info.input_s);
 %% Do NMF
 nmf_mfiles = concat_and_nmf(input_s_all);
 
-%% Make null model data (currently doing bootstrap runs later instead)
-% gen_null_model_data(nmf_mfiles);
-
-%% Euclidean distance analysis of aligned scores
-% score_dist_analysis(nmf_mfiles, 'L2_dist');
-
-%% Use CCA instead
+%% Get canonical correlation between score matrices 
 score_cca(nmf_mfiles);
 
-%% Construct matrices of mutual information and canonical correlation, with bootsrap versions
+%% Compute pairwise NMI, canonical correlation, and transition synchrony, with shuffled versions
 
-n_bootstrap = 1000;
+n_shuffle = 1000;
 cdf_interp_vals = 0:0.01:1;
 
 all_chan_names = cell(length(exp_info), 1); 
 hr_chan_names = cell(length(exp_info), 1); % human-readable
 mut_info_combined = cell(length(exp_info), 1);
-mut_info_boot = cell(length(exp_info), 1);
+mut_info_shuffle = cell(length(exp_info), 1);
 all_cca = cell(length(exp_info), 1);
-all_cca_boot = cell(length(exp_info), 1);
+all_cca_shuffle = cell(length(exp_info), 1);
 all_pair_sync_scores = cell(length(exp_info), 1);
-all_pair_sync_scores_boot = cell(length(exp_info), 1);
-bootstrap_rstates = cell(length(exp_info), 1);
+all_pair_sync_scores_shuffle = cell(length(exp_info), 1);
+shuffle_seeds = cell(length(exp_info), 1);
 
 for kE = 1:length(exp_info)
     this_info = exp_info(kE);
@@ -122,15 +116,16 @@ for kE = 1:length(exp_info)
 
     % gather distance information from each recording
     mut_info_combined{kE} = nan(n_chans, n_chans, this_ndays);
-    mut_info_boot{kE} = nan(n_chans, n_chans, this_ndays, n_bootstrap);
+    mut_info_shuffle{kE} = nan(n_chans, n_chans, this_ndays, n_shuffle);
     all_cca{kE} = nan(n_chans, n_chans, this_ndays);
-    all_cca_boot{kE} = nan(n_chans, n_chans, this_ndays, n_bootstrap);
+    all_cca_shuffle{kE} = nan(n_chans, n_chans, this_ndays, n_shuffle);
     all_pair_sync_scores{kE} = nan(n_chans, n_chans, this_ndays);
-    all_pair_sync_scores_boot{kE} = nan(n_chans, n_chans, this_ndays, n_bootstrap);
-    bootstrap_rstates{kE} = cell(this_ndays, 1);
+    all_pair_sync_scores_shuffle{kE} = nan(n_chans, n_chans, this_ndays, n_shuffle);
+    shuffle_seeds{kE} = cell(this_ndays, 1);
     
+    % for collecting interpolated cumulated frequency of transition sync scores across days
     cum_trans_interp = zeros(1, length(cdf_interp_vals));
-    cum_trans_boot = zeros(n_bootstrap, length(cdf_interp_vals));
+    cum_trans_interp_shuffle = zeros(n_shuffle, length(cdf_interp_vals));
     
     for kD = 1:this_ndays
         this_day = this_info.input_s(kD).name;
@@ -189,39 +184,39 @@ for kE = 1:length(exp_info)
         nmf_V = this_mfile.nmf_V;
         trans = this_mfile.filtered_transitions;
         models = cell(this_n_chans, 1);
-        rstates = cell(n_bootstrap, this_n_chans);
+        seeds = cell(n_shuffle, this_n_chans);
 
-        for kB = 1:n_bootstrap
+        for kS = 1:n_shuffle
             V_shuffled = cell(this_n_chans, 1);
             classes_shuffled = cell(this_n_chans, 1);
 
             for kC = 1:this_n_chans
-                [V_shuffled{kC}, classes_shuffled{kC}, models{kC}, rstates{kB, kC}] = ...
+                [V_shuffled{kC}, classes_shuffled{kC}, models{kC}, seeds{kS, kC}] = ...
                     util.shuffle_scores_markov(nmf_V{1}{kC}, classes(:, kC), trans{1}{kC}, models{kC});
             end
             
             % mean transition synchrony CDF
             % make struct to stand in for NMF mfile in get_state_transitions
-            boot_nmf_info = struct;
-            boot_nmf_info.nmf_classes = {classes_shuffled};
-            boot_nmf_info.nmf_V = {V_shuffled};
-            boot_nmf_info.time_axis = this_mfile.time_axis;
-            boot_nmf_info.chan_names = this_mfile.chan_names;
-            boot_trans_table = get_state_transitions(mt_paths, boot_nmf_info, ...
+            shuffle_nmf_info = struct;
+            shuffle_nmf_info.nmf_classes = {classes_shuffled};
+            shuffle_nmf_info.nmf_V = {V_shuffled};
+            shuffle_nmf_info.time_axis = this_mfile.time_axis;
+            shuffle_nmf_info.chan_names = this_mfile.chan_names;
+            shuffle_trans_table = get_state_transitions(mt_paths, shuffle_nmf_info, ...
                 struct('save_filtered_classes', false));
-            boot_trans_table = calc_transition_synchronization(boot_trans_table);
+            shuffle_trans_table = calc_transition_synchronization(shuffle_trans_table);
             
-            cum_trans = histcounts(boot_trans_table.sync_score, cum_edges, 'Normalization', 'cumcount');
-            cum_trans_boot(kB, :) = cum_trans_boot(kB, :) + interp1(cum_vals, cum_trans, cdf_interp_vals);
+            cum_trans = histcounts(shuffle_trans_table.sync_score, cum_edges, 'Normalization', 'cumcount');
+            cum_trans_interp_shuffle(kS, :) = cum_trans_interp_shuffle(kS, :) + interp1(cum_vals, cum_trans, cdf_interp_vals);
             
             % pair sync scores
-            all_pair_sync_scores_boot{kE}(insert_inds, insert_inds, kD, kB) = ...
-                calc_pair_sync_scores(boot_trans_table, this_chans);
+            all_pair_sync_scores_shuffle{kE}(insert_inds, insert_inds, kD, kS) = ...
+                calc_pair_sync_scores(shuffle_trans_table, this_chans);
             
             % normalized mutual information
-            [~, nmi_boot] = class_mut_info(horzcat(classes_shuffled{:}));
-            nmi_boot(1:this_n_chans >= (1:this_n_chans)') = nan;
-            mut_info_boot{kE}(insert_inds, insert_inds, kD, kB) = nmi_boot;
+            [~, nmi_shuffle] = class_mut_info(horzcat(classes_shuffled{:}));
+            nmi_shuffle(1:this_n_chans >= (1:this_n_chans)') = nan;
+            mut_info_shuffle{kE}(insert_inds, insert_inds, kD, kS) = nmi_shuffle;
             
             % canonical correlation
             this_cca = nan(this_n_chans);
@@ -231,33 +226,34 @@ for kE = 1:length(exp_info)
                     this_cca(iC, jC) = mean(ps);
                 end
             end
-            all_cca_boot{kE}(insert_inds, insert_inds, kD, kB) = this_cca;
+            all_cca_shuffle{kE}(insert_inds, insert_inds, kD, kS) = this_cca;
         end        
-        bootstrap_rstates{kE}{kD} = rstates;
+        shuffle_seeds{kE}{kD} = seeds;
     end
     
-    % make transition sync CDF plot (comparison with bootstrap)
+    % make transition sync CDF plot (comparison with shuffled)
     cdf_trans = cum_trans_interp / cum_trans_interp(end);
-    cdf_trans_boot = cum_trans_boot ./ cum_trans_boot(:, end);
+    cdf_trans_shuffle = cum_trans_interp_shuffle ./ cum_trans_interp_shuffle(:, end);
     
     fh = figure;
     plot(cdf_interp_vals, cdf_trans);
     hold on;
     
     % Plot median and 95% CI of bootstrap CDFs with error bars
-    boot_cdf_quantiles = quantile(cdf_trans_boot, [0.025, 0.5, 0.975]);
+    shuffle_cdf_quantiles = quantile(cdf_trans_shuffle, [0.025, 0.5, 0.975]);
     xconf = [cdf_interp_vals, cdf_interp_vals(end:-1:1)];
-    yconf = [boot_cdf_quantiles(3, :), boot_cdf_quantiles(1, end:-1:1)];
-    plot(cdf_interp_vals, boot_cdf_quantiles(2, :), 'r');
+    yconf = [shuffle_cdf_quantiles(3, :), shuffle_cdf_quantiles(1, end:-1:1)];
+    plot(cdf_interp_vals, shuffle_cdf_quantiles(2, :), 'r');
     fill(xconf, yconf, 'red', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
     
-    title(sprintf('Synchronization scores for all days (%s) (%d bootstraps)', ...
-        this_info.type, n_bootstrap), 'Interpreter', 'none');
+    title({sprintf('Synchronization scores for all days vs. %d shuffled runs', n_shuffle), ...
+        this_info.type}, 'Interpreter', 'none');
     xlabel('Sync score');
     ylabel('CDF');
     legend('Real', 'Shuffled', '95% CI', 'Location', 'northwest');
-    savefig(fh, fullfile(sr_dirs.results, 'res_figs', ...
-        sprintf('transition_sync_cdf_boot_%s.fig', this_info.type)));
+    figname = sprintf('transition_sync_cdf_%s', this_info.type);
+    savefig(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.fig']));
+    saveas(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.svg']));
     
     % for matrices - find channels with no data
     nonempty_chan_combos = any(~isnan(mut_info_combined{kE}), 3);
@@ -268,47 +264,58 @@ for kE = 1:length(exp_info)
     all_chan_names{kE} = all_chan_names{kE}(nonempty_chans);
     hr_chan_names{kE} = hr_chan_names{kE}(nonempty_chans);
     mut_info_combined{kE} = mut_info_combined{kE}(nonempty_chans, nonempty_chans, :);
-    mut_info_boot{kE} = mut_info_boot{kE}(nonempty_chans, nonempty_chans, :, :);
+    mut_info_shuffle{kE} = mut_info_shuffle{kE}(nonempty_chans, nonempty_chans, :, :);
     all_cca{kE} = all_cca{kE}(nonempty_chans, nonempty_chans, :);
-    all_cca_boot{kE} = all_cca_boot{kE}(nonempty_chans, nonempty_chans, :, :);
+    all_cca_shuffle{kE} = all_cca_shuffle{kE}(nonempty_chans, nonempty_chans, :, :);
     all_pair_sync_scores{kE} = all_pair_sync_scores{kE}(nonempty_chans, nonempty_chans, :);
-    all_pair_sync_scores_boot{kE} = all_pair_sync_scores_boot{kE}(nonempty_chans, nonempty_chans, :, :);
+    all_pair_sync_scores_shuffle{kE} = all_pair_sync_scores_shuffle{kE}(nonempty_chans, nonempty_chans, :, :);
 end
 
 %% Use bootstraps to compute z-scores
-matrix_data = {mut_info_combined, all_cca, all_pair_sync_scores};
-matrix_zscores = matrix_data;
-boot_data = {mut_info_boot, all_cca_boot, all_pair_sync_scores_boot};
 
-for kV = 1:length(matrix_data)
-    for kE = 1:length(matrix_data{kV})
-        for kD = 1:size(matrix_data{kV}{kE}, 3)
-            mean_boot = mean(boot_data{kV}{kE}(:, :, kD, :), 4);
-            std_boot = std(boot_data{kV}{kE}(:, :, kD, :), 0, 4);
-            matrix_zscores{kV}{kE}(:, :, kD) = (matrix_data{kV}{kE}(:, :, kD) - mean_boot) ./ std_boot;
-        end
+% make n_experiment x 1 struct array
+pairwise_stats = struct(...
+    'norm_mutual_info',     mut_info_combined, ...
+    'cca',                  all_cca, ...
+    'trans_sync_scores',    all_pair_sync_scores ...
+    );
+
+pairwise_stats_shuffle = struct(...
+    'norm_mutual_info',     mut_info_shuffle, ...
+    'cca',                  all_cca_shuffle, ...
+    'trans_sync_scores',    all_pair_sync_scores_shuffle ...
+    );
+
+
+analysis_names = fieldnames(pairwise_stats);
+
+for kE = 1:length(exp_info)
+    for kA = 1:length(analysis_names)
+        aname = analysis_names{kA};
+        mean_shuffle = mean(pairwise_stats_shuffle(kE).(aname), 4);
+        std_shuffle = std(pairwise_stats_shuffle(kE).(aname), 0, 4);
+        pairwise_stats(kE).([aname, '_z']) = (pairwise_stats(kE).(aname) - mean_shuffle) ./ std_shuffle;
     end
 end
 
-[mut_info_z, cca_z, pair_sync_scores_z] = matrix_zscores{:};
-
 %%
-save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'n_bootstrap', 'all_chan_names', 'hr_chan_names', ...
-    'mut_info_combined', 'mut_info_boot', 'all_cca', 'all_cca_boot', ...
-    'all_pair_sync_scores', 'all_pair_sync_scores_boot', 'bootstrap_rstates', ...
-    'mut_info_z', 'cca_z', 'pair_sync_scores_z', '-v7.3');
+save(fullfile(ssr_dirs.results, 'analysis_info.mat'), 'exp_types', 'n_shuffle', 'all_chan_names', ...
+   'hr_chan_names', 'pairwise_stats', 'pairwise_stats_shuffle', 'shuffle_seeds', 'exp_info', '-v7.3');
 
 %% Get channel permutation test distributions and p-values for contrasts
 n_perm = 1e7;
-contrasts = {{'SameRegion', 'CrossRegion'}, {'SameRegionNonL4', 'SameRegionL4'}};
-matrix_zscores = {mut_info_z, cca_z, pair_sync_scores_z};
-perm_pvals = zeros(length(matrix_zscores), length(contrasts), length(exp_info));
+contrasts = struct(...
+    'SameVsCross', {{'SameRegion', 'CrossRegion'}}, ...
+    'Same_L4VsNonL4', {{'SameRegionNonL4', 'SameRegionL4'}});
+contrast_names = fieldnames(contrasts);
 
-for kE = 1:length(exp_info)
+perm_pvals = cell2struct(cell(length(analysis_names), length(exp_info)), analysis_names, 1);
+
+for kE = 1:length(exp_info)    
     chan_names = all_chan_names{kE};
     n_chans = length(chan_names);
 
-    perm_stats = zeros(length(matrix_zscores), length(contrasts), n_perm+1);
+    perm_stats = struct;
     for kP = 1:n_perm+1
         if kP == 1
             permutation = 1:n_chans;
@@ -317,255 +324,106 @@ for kE = 1:length(exp_info)
         end
         
         chans_perm = chan_names(permutation);
-        for kD = 1:length(matrix_zscores)
-            z_perm_by_type = util.categorize_pair_data(matrix_zscores{kD}{kE}, chans_perm);
-            for kC = 1:length(contrasts)
-                perm_stats(kD, kC, kP) = mean(z_perm_by_type.(contrasts{kC}{1})) - ...
-                    mean(z_perm_by_type.(contrasts{kC}{2}));
+        for kA = 1:length(analysis_names)
+            aname = analysis_names{kA};
+            zname = [aname, '_z'];
+            z_perm_by_type = util.categorize_pair_data(pairwise_stats(kE).(zname), chans_perm);
+            for kC = 1:length(contrast_names)
+                cname = contrast_names{kC};
+                if kP == 1
+                    % initialize
+                    perm_stats.(aname).(cname) = zeros(n_perm+1, 1);
+                end
+                perm_stats.(aname).(cname)(kP) = ...
+                    mean(z_perm_by_type.(contrasts.(cname){1})) - mean(z_perm_by_type.(contrasts.(cname){2}));
             end
         end
     end
-    real_stats = perm_stats(:, :, 1);
-    perm_stats = perm_stats(:, :, 2:end);
     
-    % get conservative p_u which should be fine for our # of possible permutations
+    % get conservative permutation p-value which should be fine for our # of possible permutations
     % explained at https://arxiv.org/pdf/1603.05766.pdf
-    perm_pvals(:, :, kE) = (sum(perm_stats > real_stats, 3) + 1) / (n_perm + 1);
+    perm_pvals(kE) = deep_structfun(@(stats) (sum(stats(2:end) > stats(1)) + 1) / (n_perm + 1), perm_stats);
 end
 
-%% Mutual information combined plots
+save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'n_perm', 'perm_pvals', '-append');
+
+%% Make combined matrix plots (means of z-scores)
 
 for kE = 1:length(exp_info)
-    this_info = exp_info(kE);
-    this_ndays = length(this_info.days);
+    exp_name = exp_info(kE).type;
+    exp_ndays = length(exp_info(kE).days);
     
-    % matrix plot
-    med_mut_info = median(mut_info_combined{kE}, 3, 'omitnan');
-    fh = plot_dist_mat(med_mut_info, hr_chan_names{kE}, ...
-        sprintf('%s, median over %d days', this_info.type, this_ndays), ...
-        'norm_mutual_info', [], all_chan_names{kE});
-    savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_nmi_%s.fig', this_info.type)));
-    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_nmi_%s.svg', this_info.type)));
-    
-    % violin plot
-    fh = make_violin(mut_info_combined{kE}, all_chan_names{kE}, {
-        'SameRegion', 'CrossRegion', ...
-        'SameRegionL4', 'SameRegionNonL4', ...
-        'CrossRegionL4', 'CrossRegionNonL4'
-        }, {
-        'Within Region', 'Across Regions', ...
-        {'Within Region,', 'Including L4'}, ...
-        {'Within Region,', 'Excluding L4'}, ...
-        {'Across Regions,', 'Including L4'}, ...
-        {'Across Regions,', 'Excluding L4'}
-        });
-    fh.Position(3) = 950;
-    
-    % add dotted line separating plots
-    hold on;
-    myylims = get(gca, 'YLim');
-    plot([2.5, 2.5], myylims, 'k--');
-    
-    ylabel('Normalized MI');
-    title(sprintf('Normalized mutual information of channel classes (%s)', this_info.type), ...
-        'Interpreter', 'none');
-    
-    pvals = ones(3, 1);
+    for kA = 1:length(analysis_names)
+        zname = [analysis_names{kA}, '_z'];
+        mean_z = mean(pairwise_stats(kE).(zname), 3, 'omitnan');
         
-    % calc p-values using bootstraps which is really a permutation test, oops
-    pvals(1) = permutation_tval_test(mut_info_combined{kE}, mut_info_boot{kE}, all_chan_names{kE}, ...
-        'SameRegion', 'CrossRegion');
-    exp_info(kE).nmi_crossvssame_pval = pvals(1);
-    
-    pvals(2) = permutation_tval_test(mut_info_combined{kE}, mut_info_boot{kE}, all_chan_names{kE}, ...
-        'SameRegionNonL4', 'SameRegionL4');
-    exp_info(kE).nmi_samel4_pval = pvals(2);
-    
-    pvals(3) = permutation_tval_test(mut_info_combined{kE}, mut_info_boot{kE}, all_chan_names{kE}, ...
-        'CrossRegionNonL4', 'CrossRegionL4');
-    exp_info(kE).nmi_crossl4_pval = pvals(3);
-
-    % significance stars
-    hs = sigstar({[1, 2], [3, 4], [5, 6]}, pvals);
-    set(hs(:, 2), 'FontSize', 18);
-    delete(hs(pvals >= 0.05, :));
-    
-    savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('nmi_violin_%s.fig', this_info.type)));
-    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('nmi_violin_%s.svg', this_info.type)));
+        fh = plot_dist_mat(mean_z, hr_chan_names{kE}, ...
+            sprintf('%s, mean over %d days', exp_name, exp_ndays), ...
+            zname, 'lower_nodiag', all_chan_names{kE});
+        
+        figname = sprintf('mean_%s_%s', zname, exp_name);
+        savefig(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.fig']));
+        saveas(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.svg']));
+    end
 end
 
-%% CCA combined plots
-
+%% Make violin plots, showing shuffled p-values for regional and L4 contrasts
 for kE = 1:length(exp_info)
-    this_info = exp_info(kE);
-    this_ndays = length(this_info.days);
+    exp_name = exp_info(kE).type;
+    exp_ndays = length(exp_info(kE).days);
+    
+    for kA = 1:length(analysis_names)
+        aname = analysis_names{kA};
+        zname = [aname, '_z'];
+        fh = make_violin(pairwise_stats(kE).(zname), all_chan_names{kE}, ...
+            [contrasts.SameVsCross, contrasts.Same_L4VsNonL4], ...
+            {
+                'Within Region'
+                'Across Regions'
+                {'Within Region', 'Outside L4'}
+                {'Within Region', 'With L4'}
+            });
+        fh.Position(3) = 600;
 
-    % matrix plot
-    med_cca = median(all_cca{kE}, 3, 'omitnan');    
-    fh = plot_dist_mat(med_cca, hr_chan_names{kE}, ...
-        sprintf('%s - median over %d days', this_info.type, this_ndays), ...
-        'cca_mean_r', [], all_chan_names{kE});
-    savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_cca_r_%s.fig', this_info.type)));
-    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_cca_r_%s.svg', this_info.type)));
-    
-    % violin plot
-    fh = make_violin(all_cca{kE}, all_chan_names{kE}, {
-        'SameRegion', 'CrossRegion', ...
-        'SameRegionL4', 'SameRegionNonL4', ...
-        'CrossRegionL4', 'CrossRegionNonL4'
-        }, {
-        'Within Region', 'Across Regions', ...
-        {'Within Region,', 'Including L4'}, ...
-        {'Within Region,', 'Excluding L4'}, ...
-        {'Across Regions,', 'Including L4'}, ...
-        {'Across Regions,', 'Excluding L4'}
-        });
-    fh.Position(3) = 950;
-    
-    % add dotted line separating plots
-    hold on;
-    myylims = get(gca, 'YLim');
-    plot([2.5, 2.5], myylims, 'k--');
-    
-    ylabel('Mean CCA r');
-    title(sprintf('Canonical correlation of channel NMF scores (%s)', this_info.type), ...
-        'Interpreter', 'none');
-    
-    pvals = ones(3, 1);
+        % add dotted line separating plots
+        hold on;
+        myylims = get(gca, 'YLim');
+        plot([2.5, 2.5], myylims, 'k--');
         
-    % calc p-values using bootstraps which is really a permutation test, oops
-    pvals(1) = permutation_tval_test(all_cca{kE}, all_cca_boot{kE}, all_chan_names{kE}, ...
-        'SameRegion', 'CrossRegion');
-    exp_info(kE).cca_crossvssame_pval = pvals(1);
-    
-    pvals(2) = permutation_tval_test(all_cca{kE}, all_cca_boot{kE}, all_chan_names{kE}, ...
-        'SameRegionNonL4', 'SameRegionL4');
-    exp_info(kE).cca_samel4_pval = pvals(2);
-    
-    pvals(3) = permutation_tval_test(all_cca{kE}, all_cca_boot{kE}, all_chan_names{kE}, ...
-        'CrossRegionNonL4', 'CrossRegionL4');
-    exp_info(kE).cca_crossl4_pval = pvals(3);
+        % analysis-specific labels
+        switch aname
+            case 'norm_mutual_info'
+                ylabel('Normalized MI');
+                title(sprintf('Normalized mutual information of channel classes (%s)', exp_name), ...
+                    'Interpreter', 'none');
 
-    % significance stars
-    hs = sigstar({[1, 2], [3, 4], [5, 6]}, pvals);
-    set(hs(:, 2), 'FontSize', 18);
-    delete(hs(pvals >= 0.05, :));
-    
-    savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('cca_violin_%s.fig', this_info.type)));
-    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('cca_violin_%s.svg', this_info.type)));
-end
+            case 'cca'
+                ylabel('Mean CCA r');
+                title(sprintf('Canonical correlation of channel NMF scores (%s)', exp_name), ...
+                    'Interpreter', 'none');
 
-%% Transition pair synchrony combined plots
-
-for kE = 1:length(exp_info)
-    this_info = exp_info(kE);
-    this_ndays = length(this_info.days);
-
-    % matrix plot
-    med_sync = median(all_pair_sync_scores{kE}, 3, 'omitnan');    
-    fh = plot_dist_mat(med_sync, hr_chan_names{kE}, ...
-        sprintf('%s - median over %d days', this_info.type, this_ndays), ...
-        'trans_sync_scores', [], all_chan_names{kE});
-    savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_trans_sync_%s.fig', this_info.type)));
-    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_trans_sync_%s.svg', this_info.type)));
-    
-    % violin plot
-    fh = make_violin(all_pair_sync_scores{kE}, all_chan_names{kE}, {
-        'SameRegion', 'CrossRegion', ...
-        'SameRegionL4', 'SameRegionNonL4', ...
-        'CrossRegionL4', 'CrossRegionNonL4'
-        }, {
-        'Within Region', 'Across Regions', ...
-        {'Within Region,', 'Including L4'}, ...
-        {'Within Region,', 'Excluding L4'}, ...
-        {'Across Regions,', 'Including L4'}, ...
-        {'Across Regions,', 'Excluding L4'}
-        });
-    fh.Position(3) = 950;
-
-    % add dotted line separating plots
-    hold on;
-    myylims = get(gca, 'YLim');
-    plot([2.5, 2.5], myylims, 'k--');
-    
-    ylabel('Mean SYNC score');
-    title(sprintf('Synchronization of channel class transitions (%s)', this_info.type), ...
-        'Interpreter', 'none');
-    
-    pvals = ones(3, 1);
+            case 'trans_sync_scores'
+                ylabel('Mean SYNC score');
+                title(sprintf('Synchronization of channel class transitions (%s)', exp_name), ...
+                    'Interpreter', 'none');
+        end
         
-    % calc p-values using bootstraps which is really a permutation test, oops
-    pvals(1) = permutation_tval_test(all_pair_sync_scores{kE}, all_pair_sync_scores_boot{kE}, ...
-        all_chan_names{kE}, 'SameRegion', 'CrossRegion');
-    exp_info(kE).trans_sync_crossvssame_pval = pvals(1);
-    
-    pvals(2) = permutation_tval_test(all_pair_sync_scores{kE}, all_pair_sync_scores_boot{kE}, ...
-        all_chan_names{kE}, 'SameRegionNonL4', 'SameRegionL4');
-    exp_info(kE).trans_sync_samel4_pval = pvals(2);
-    
-    pvals(3) = permutation_tval_test(all_pair_sync_scores{kE}, all_pair_sync_scores_boot{kE}, ...
-        all_chan_names{kE}, 'CrossRegionNonL4', 'CrossRegionL4');
-    exp_info(kE).trans_sync_crossl4_pval = pvals(3);
-
-    % significance stars
-    hs = sigstar({[1, 2], [3, 4], [5, 6]}, pvals);
-    set(hs(:, 2), 'FontSize', 18);
-    delete(hs(pvals >= 0.05, :));
-    
-    savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('trans_sync_violin_%s.fig', this_info.type)));
-    saveas(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('trans_sync_violin_%s.svg', this_info.type)));
+        % add p-value indicators
+        pval_s = perm_pvals(kE).(aname);
+        pvals = [pval_s.SameVsCross, pval_s.Same_L4VsNonL4];
+        pvals(pvals >= 0.05) = nan;
+        hs = sigstar({[1, 2], [3, 4]}, pvals);
+        set(hs(:, 2), 'VerticalAlignment', 'baseline', 'FontSize', 14);
+        
+        figname = sprintf('violin_%s_%s', zname, exp_name);
+        savefig(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.fig']));
+        saveas(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.svg']));
+    end
 end
 
 %% Finally, save
 save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'exp_info', '-append');
 
-%% Score distance combined plots
-% 
-% for kE = 1:length(exp_info)
-%     this_info = exp_info(kE);
-%     this_ndays = length(this_info.days);
-% 
-%     med_dists = median(all_dists{kE}, 3, 'omitnan');
-%     med_dists_from_null = median(all_dists_null{kE} - all_dists{kE}, 3, 'omitnan');
-%     med_recon_err = median(all_recon_err{kE}, 3, 'omitnan');
-% 
-%     % matrix plots
-%     % Score distance
-%     fh = plot_dist_mat(med_dists, hr_chan_names{kE}, ...
-%         sprintf('%s - median over %d days', this_info.type, this_ndays), 'L2_dist');
-%     savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_score_dist_%s.fig', this_info.type)));
-%     
-%     % Score dist, difference from null model
-%     fh = plot_dist_mat(med_dists_from_null, hr_chan_names{kE}, ...
-%         sprintf('%s (median)', this_info.type), 'L2_dist_from_null');
-%     savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_score_dist_fromnull_%s.fig', this_info.type)));
-%     
-%     % Reconstruction error
-%     fh = plot_dist_mat(med_recon_err, hr_chan_names{kE}, ...
-%         sprintf('%s (median)', this_info.type), 'recon_from_L2_dist');
-%     savefig(fh, fullfile(sr_dirs.results, 'res_figs', sprintf('med_l2_recon_err_%s.fig', this_info.type)));
-%  
-%     % Score dist, ratio of real to null model
-%     dist_ratio = all_dists{kE} ./ all_dists_null{kE};
-%     [fh, pval] = make_crosss_vs_same_violin(dist_ratio, all_chan_names{kE}, 'right');
-%     ylabel('Score distance (frac. of null model)');
-%     title({'Euclidean distance of aligned NMF scores, compared to null model', ...
-%         this_info.type}, 'Interpreter', 'none');
-%     savefig(fh, fullfile(sr_dirs.results, 'res_figs', ...
-%         sprintf('dist_vs_null_violin_%s.fig', this_info.type)));
-%     exp_info(kE).dist_vs_null_pval = pval;
-%     fprintf('Score distance vs. null, %s, cross- vs. same-region:\n p = %g\n', this_info.type, pval);
-%     
-%     % Reconstruction error
-%     [fh, pval] = make_cross_vs_same_violin(all_recon_err{kE}, all_chan_names{kE}, 'right');
-%     ylabel('Reconstruction error');
-%     title({'Cross-channel reconstruction error from aligned NMF scores', ...
-%         this_info.type}, 'Interpreter', 'none');
-%     savefig(fh, fullfile(sr_dirs.results, 'res_figs', ...
-%         sprintf('recon_err_violin_%s.fig', this_info.type)));
-%     exp_info(kE).recon_err_pval = pval;
-%     fprintf('Reconstruction error, %s, cross- vs. same-region:\n p = %g\n', this_info.type, pval);
-% end
 
 %% Function to get pairwise mean sync scores
 function pair_sync_scores = calc_pair_sync_scores(trans_table, chan_names)
@@ -632,78 +490,6 @@ end
 
 end
 
-function [hf, p] = make_cross_vs_same_violin(mats_over_days, chan_names, ...
-    ttest_tail, b_include_self)
-% make violin plot to compare a quantity for cross-region pairs, witin-region pairs, and self-loops.
-% chan_names should be in "region_layer" format, not the "human-readable" format.
-% ttest_tail: 'right' means hypothesis is across > within for this measure and vice versa.
-
-if ~exist('ttest_tail', 'var') || isempty(ttest_tail)
-    ttest_tail = 'left';
-end
-
-if ~exist('b_include_self', 'var') || isempty(b_include_self)
-    b_include_self = true;
-end
-
-types = {'Single channel replication', 'Within region', 'Across regions'};
-type_snames = {'SameChannel', 'SameRegion', 'CrossRegion'};
-if ~b_include_self
-    types = types(2:end);
-    type_snames = type_snames(2:end);
-end
-
-[hf, vs] = make_violin(mats_over_days, chan_names, type_snames, types);
-
-if b_include_self
-    same_region_data = vs(2).ScatterPlot.YData;
-    cross_region_data = vs(3).ScatterPlot.YData;
-else
-    same_region_data = vs(1).ScatterPlot.YData;
-    cross_region_data = vs(2).ScatterPlot.YData;
-end
-    
-[~, p] = ttest2(cross_region_data, same_region_data, 0.01, ttest_tail);
-
-end
-
-function p = permutation_tval_test(real_mats, perm_mats, chan_names, contrast_group1, contrast_group2)
-% Get permutation test p-value for the hypothesis contrast_group1 > contrast_group2
-% These are strings that refer to struct names of the return value of categorize_pair_data
-% real_mats should be a 3-dimensional array of the measure on channel pairs across days
-% perm_mats should be a 4-dimensional array, the last dimension iterates over permutation runs
-% chan_names is the machine-readable channel names to input to categorize_pair_data
-
-welch_tval = @(group1, group2) (mean(group1) - mean(group2)) / ...
-    sqrt(var(group1) / length(group1) + var(group2) / length(group2));
-tval_fn = @(vals_bytype) welch_tval(vals_bytype.(contrast_group1), vals_bytype.(contrast_group2));
-
-% get real tval
-real_vals_bytype = util.categorize_pair_data(real_mats, chan_names);
-tval_real = tval_fn(real_vals_bytype);
-
-% get permutation tvals
-perm_vals_bytype = cellfun(@(perm_cca) util.categorize_pair_data(perm_cca, chan_names), ...
-    num2cell(perm_mats, [1, 2, 3]));
-tvals_perm = arrayfun(tval_fn, perm_vals_bytype);
-
-p = sum(tvals_perm > tval_real) / size(perm_mats, 4);
-
-end
-
-%% old code for separate real and null dist violin plots
-%     hf = figure; hold on;
-%     viol1 = violinplot(dists_bytype, [], 'ViolinColor', [1, 0, 0]);
-%     viol2 = violinplot(dists_null_bytype, [], 'ViolinColor', [0.5, 0.5, 0.5]);
-%     legend([viol1(1).ViolinPlot, viol2(1).ViolinPlot], 'Real data', 'Markov-chain generated', 'Location', 'southeast');
-%     xticklabels(types);
-%     ylabel('Euclidean score distance');
-%
-%     title({'Euclidean distance of aligned NMF scores between pairs of channels', ...
-%         exp_info(kE).type}, 'Interpreter', 'none');
-%
-%     savefig(hf, fullfile(sr_dirs.results, 'res_figs', ...
-%         sprintf('score_dist_violin_%s.fig', exp_info(kE).type)));
 
 %% make a graph plot out of it
 % med_kl_div_from_null_nonnan = med_dists_from_null;
