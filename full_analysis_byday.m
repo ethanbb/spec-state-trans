@@ -342,7 +342,14 @@ for kE = 1:length(exp_info)
     
     % get conservative permutation p-value which should be fine for our # of possible permutations
     % explained at https://arxiv.org/pdf/1603.05766.pdf
-    perm_pvals(kE) = deep_structfun(@(stats) (sum(stats(2:end) > stats(1)) + 1) / (n_perm + 1), perm_stats);
+    for kA = 1:length(analysis_names)
+        aname = analysis_names{kA};
+        for kC = 1:length(contrast_names)
+            cname = contrast_names{kC};
+            stats = perm_stats.(aname).(cname);
+            perm_pvals(kE).(aname).(cname) = (sum(stats(2:end) > stats(1)) + 1) / (n_perm + 1);
+        end
+    end
 end
 
 save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'n_perm', 'perm_pvals', '-append');
