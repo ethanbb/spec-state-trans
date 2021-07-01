@@ -35,6 +35,20 @@ vals_bytype.CrossRegionNonL4 = get_masked_vals(~same_channel & ~pair_hasl4 & ~sa
 vals_bytype.SameRegion = [vals_bytype.SameRegionL4; vals_bytype.SameRegionNonL4];
 vals_bytype.CrossRegion = [vals_bytype.CrossRegionL4; vals_bytype.CrossRegionNonL4];
 
+% region-specific
+regs_of_interest = ["V1", "M1"];
+for kR = 1:length(regs_of_interest)
+    reg = regs_of_interest(kR);
+    in_region = contains(regions, reg) & contains(regions, reg)';
+    
+    vals_bytype.(sprintf('In%sL4', reg)) = ...
+        get_masked_vals(~same_channel & pair_hasl4 & same_region & in_region);
+    vals_bytype.(sprintf('In%sNonL4', reg)) = ...
+        get_masked_vals(~same_channel & ~pair_hasl4 & same_region & in_region);
+    vals_bytype.(sprintf('In%s', reg)) = ...
+        [vals_bytype.(sprintf('In%sL4', reg)); vals_bytype.(sprintf('In%sNonL4', reg))];
+end
+
 vals_bytype = structfun(@(v) v(~isnan(v)), vals_bytype, 'uni', false);
 
 end

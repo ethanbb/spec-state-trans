@@ -81,8 +81,9 @@ for kO = 1:length(input_s)
     end
     time_axis = cell2mat(time_axes);
     rec_data = cellfun(@cell2mat, rec_data, 'uni', false); % concatenate each channel individually
+    
 
-    % allocate matrices to store U, V, and classifications
+    %% allocate matrices to store U, V, and classifications
     % do it twice in order to be able to compare each channel with itself.
     n_reps = 2;
     U_all = cell(n_reps, 1);
@@ -203,6 +204,7 @@ for kO = 1:length(input_s)
     save_mfile.nmf_transitions = trans_all;
     save_mfile.time_axis = time_axis;
     save_mfile.freq_axis = freq_axis;
+    save_mfile.pxx_cat = rec_data;
     
 end
 

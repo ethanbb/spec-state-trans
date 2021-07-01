@@ -304,55 +304,101 @@ save(fullfile(ssr_dirs.results, 'analysis_info.mat'), 'exp_types', 'n_shuffle', 
 
 %% Get channel permutation test distributions and p-values for contrasts
 n_perm = 1e7;
-contrasts = struct(...
-    'SameVsCross', {{'SameRegion', 'CrossRegion'}}, ...
-    'Same_L4VsNonL4', {{'SameRegionNonL4', 'SameRegionL4'}});
-contrast_names = fieldnames(contrasts);
+contrasts(1).name = 'SameVsCross';
+contrasts(1).type1 = 'SameRegion';
+contrasts(1).type2 = 'CrossRegion';
 
-perm_pvals = cell2struct(cell(length(analysis_names), length(exp_info)), analysis_names, 1);
+contrasts(2).name = 'V1_NonL4VsL4';
+contrasts(2).type1 = 'InV1NonL4';
+contrasts(2).type2 = 'InV1L4';
 
-for kE = 1:length(exp_info)    
+perm_seeds = zeros(length(exp_info), 1);
+perm_test_res = cell2struct(cell(length(analysis_names), length(exp_info)), analysis_names, 1);
+
+% comparing bilateral to M1/V1
+cross_exp_contrasts(1).name = 'Cross_BilatVsM1V1';
+cross_exp_contrasts(1).type = 'CrossRegion';
+
+cross_exp_perm_test_res = perm_test_res(1:2);
+cross_exp_perm_test_res(1).exp_type = sprintf('%s_vs_%s', exp_types{[2,1]});
+cross_exp_perm_test_res(2).exp_type = sprintf('%s_vs_%s', exp_types{[4,3]});
+
+for kE = 1:length(exp_info)
+    rng('shuffle');
+    rstate = rng;
+    perm_test_res(kE).seed = rstate.Seed;
+    perm_test_res(kE).exp_type = exp_types{kE};
+    
     chan_names = all_chan_names{kE};
-    n_chans = length(chan_names);
-
-    perm_stats = struct;
-    for kP = 1:n_perm+1
-        if kP == 1
-            permutation = 1:n_chans;
-        else
-            permutation = randperm(n_chans);
-        end
-        
-        chans_perm = chan_names(permutation);
-        for kA = 1:length(analysis_names)
-            aname = analysis_names{kA};
-            zname = [aname, '_z'];
-            z_perm_by_type = util.categorize_pair_data(pairwise_stats(kE).(zname), chans_perm);
-            for kC = 1:length(contrast_names)
-                cname = contrast_names{kC};
-                if kP == 1
-                    % initialize
-                    perm_stats.(aname).(cname) = zeros(n_perm+1, 1);
-                end
-                perm_stats.(aname).(cname)(kP) = ...
-                    mean(z_perm_by_type.(contrasts.(cname){1})) - mean(z_perm_by_type.(contrasts.(cname){2}));
-            end
-        end
+    
+    % for bilateral vs. m1/v1 (cross-experiment) contrasts
+    ce_ind = floor((kE-1) / 2) + 1;
+    if mod(kE, 2) == 0
+        posneg = 'pos';
+    else
+        posneg = 'neg';
     end
     
-    % get conservative permutation p-value which should be fine for our # of possible permutations
-    % explained at https://arxiv.org/pdf/1603.05766.pdf
     for kA = 1:length(analysis_names)
         aname = analysis_names{kA};
-        for kC = 1:length(contrast_names)
-            cname = contrast_names{kC};
-            stats = perm_stats.(aname).(cname);
-            perm_pvals(kE).(aname).(cname) = (sum(stats(2:end) > stats(1)) + 1) / (n_perm + 1);
+        stats_by_type = util.categorize_pair_data(pairwise_stats(kE).(aname), chan_names);
+        for kC = 1:length(contrasts)
+            cname = contrasts(kC).name;
+            vec1 = stats_by_type.(contrasts(kC).type1);
+            vec2 = stats_by_type.(contrasts(kC).type2);
+            
+            perm_test_res(kE).(aname).(cname).data.pos = vec1;
+            perm_test_res(kE).(aname).(cname).data.neg = vec2;
+            perm_test_res(kE).(aname).(cname).pval = perm_test(vec1, vec2, n_perm);
+            
+        end
+        
+        for kC = 1:length(cross_exp_contrasts)
+            cname = cross_exp_contrasts(kC).name;
+            vec = stats_by_type.(cross_exp_contrasts(kC).type);            
+            cross_exp_perm_test_res(ce_ind).(aname).(cname).data.(posneg) = vec;
         end
     end
 end
 
-save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'n_perm', 'perm_pvals', '-append');
+% get cross-exp p-values
+for kE = 1:length(cross_exp_perm_test_res)
+    rng('shuffle');
+    rstate = rng;
+    cross_exp_perm_test_res(kE).seed = rstate.Seed;
+    
+    for kA = 1:length(analysis_names)
+        aname = analysis_names{kA};                
+        for kC = 1:length(cross_exp_contrasts)
+            cname = cross_exp_contrasts(kC).name;
+            vec1 = cross_exp_perm_test_res(kE).(aname).(cname).data.pos;
+            vec2 = cross_exp_perm_test_res(kE).(aname).(cname).data.neg;
+            cross_exp_perm_test_res(kE).(aname).(cname).pval = perm_test(vec1, vec2, n_perm);
+        end
+    end
+end
+
+save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'n_perm', 'perm_test_res', 'cross_exp_perm_test_res', '-append');
+
+%% Some things for figures
+
+analysis_names = fieldnames(perm_pvals);
+
+hr_exp_names = struct(...
+    'm1_v1',        'M1/V1', ...
+    'm1_v1_csd',    'M1/V1, CSD', ...
+    'bilateral',    'Bilateral V1', ...
+    'bilateral_csd','Bilateral V1, CSD');
+
+analysis_titles = struct(...
+    'norm_mutual_info', 'Normalized mutual information of classes', ...
+    'cca',              'Canonical corrleation of NMF scores', ...
+    'trans_sync_scores','Synchronization of class transitions');
+
+analysis_ylabels = struct(...
+    'norm_mutual_info', 'Normalized MI (z-score)', ...
+    'cca',              'Mean CCA r (z-score)', ...
+    'trans_sync_scores','Mean transition SYNC score (z-score)');
 
 %% Make combined matrix plots (means of z-scores)
 
@@ -361,12 +407,17 @@ for kE = 1:length(exp_info)
     exp_ndays = length(exp_info(kE).days);
     
     for kA = 1:length(analysis_names)
-        zname = [analysis_names{kA}, '_z'];
+        aname = analysis_names{kA};
+        zname = [aname, '_z'];
         mean_z = mean(pairwise_stats(kE).(zname), 3, 'omitnan');
         
-        fh = plot_dist_mat(mean_z, hr_chan_names{kE}, ...
-            sprintf('%s, mean over %d days', exp_name, exp_ndays), ...
+        [fh, cb] = plot_dist_mat(mean_z, hr_chan_names{kE}, ...
+            sprintf('%s, mean over %d days', hr_exp_names.(exp_name), exp_ndays), ...
             zname, 'lower_nodiag', all_chan_names{kE});
+        
+        title(sprintf('%s (%s)', analysis_titles.(aname), hr_exp_names.(exp_name)));
+        cb.Label.String = 'z-score';
+        cb.Label.FontSize = 11;
         
         figname = sprintf('mean_%s_%s', zname, exp_name);
         savefig(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.fig']));
@@ -375,7 +426,8 @@ for kE = 1:length(exp_info)
 end
 
 %% Make violin plots, showing shuffled p-values for regional and L4 contrasts
-for kE = 1:length(exp_info)
+% for kE = 1:length(exp_info)
+for kE = 1:2:length(exp_info)
     exp_name = exp_info(kE).type;
     exp_ndays = length(exp_info(kE).days);
     
@@ -383,48 +435,43 @@ for kE = 1:length(exp_info)
         aname = analysis_names{kA};
         zname = [aname, '_z'];
         fh = make_violin(pairwise_stats(kE).(zname), all_chan_names{kE}, ...
-            [contrasts.SameVsCross, contrasts.Same_L4VsNonL4], ...
+...             [contrasts.SameVsCross, contrasts.Same_L4VsNonL4], ...
+...             {
+...                 'Within Region'
+...                 'Across Regions'
+...                 {'Within Region', 'Outside L4'}
+...                 {'Within Region', 'With L4'}
+            [contrasts.SameVsCross, contrasts.V1_L4VsNonL4, contrasts.M1_L4VsNonL4], ...
             {
                 'Within Region'
                 'Across Regions'
-                {'Within Region', 'Outside L4'}
-                {'Within Region', 'With L4'}
+                {'Within V1', 'Outside L4'}
+                {'Within V1', 'With L4'}
+                {'Within M1', 'Outside L4'}
+                {'Within M1', 'With L4'}
             });
-        fh.Position(3) = 600;
+        fh.Position = [300, 300, 600, 500];
+        set(gca, 'FontName', 'Arial');
 
+        title(sprintf('%s (%s)', analysis_titles.(aname), hr_exp_names.(exp_name)));
+        ylabel(analysis_ylabels.(aname));
+        
         % add dotted line separating plots
         hold on;
         myylims = get(gca, 'YLim');
         plot([2.5, 2.5], myylims, 'k--');
         
-        % analysis-specific labels
-        switch aname
-            case 'norm_mutual_info'
-                ylabel('Normalized MI');
-                title(sprintf('Normalized mutual information of channel classes (%s)', exp_name), ...
-                    'Interpreter', 'none');
-
-            case 'cca'
-                ylabel('Mean CCA r');
-                title(sprintf('Canonical correlation of channel NMF scores (%s)', exp_name), ...
-                    'Interpreter', 'none');
-
-            case 'trans_sync_scores'
-                ylabel('Mean SYNC score');
-                title(sprintf('Synchronization of channel class transitions (%s)', exp_name), ...
-                    'Interpreter', 'none');
-        end
-        
         % add p-value indicators
         pval_s = perm_pvals(kE).(aname);
-        pvals = [pval_s.SameVsCross, pval_s.Same_L4VsNonL4];
+%         pvals = [pval_s.SameVsCross, pval_s.Same_L4VsNonL4];
+        pvals = [pval_s.SameVsCross, pval_s.V1_L4VsNonL4, pval_s.M1_L4VsNonL4];
         pvals(pvals >= 0.05) = nan;
-        hs = sigstar({[1, 2], [3, 4]}, pvals);
-        set(hs(:, 2), 'VerticalAlignment', 'baseline', 'FontSize', 14);
+        hs = sigstar(mat2cell(1:length(pvals)*2, 1, repmat(2, 1, length(pvals))), pvals);
+        set(hs(:, 2), 'VerticalAlignment', 'baseline', 'FontName', 'Arial', 'FontSize', 14);
         
-        figname = sprintf('violin_%s_%s', zname, exp_name);
-        savefig(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.fig']));
-        saveas(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.svg']));
+%         figname = sprintf('violin_%s_%s', zname, exp_name);
+%         savefig(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.fig']));
+%         saveas(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.svg']));
     end
 end
 
@@ -450,7 +497,25 @@ end
 
 end
 
-%% Functions to make violin plots
+%% Function to shuffle labels on a pair of vectors to get permutation p-value
+function pval = perm_test(vec1, vec2, n_perm)
+% Tests the hypothesis that mean(vec1) > mean(vec2)
+
+% coefficients for mean comparison:
+coefs = [ones(1, length(vec1)) / length(vec1), -ones(1, length(vec2)) / length(vec2)];
+vec_all = [vec1(:); vec2(:)];
+mean_diff_real = coefs * vec_all;
+mean_diff_perm = zeros(n_perm, 1);
+for kP = 1:n_perm
+    mean_diff_perm(kP) = coefs(randperm(length(coefs))) * vec_all;
+end
+
+% See: https://arxiv.org/pdf/1603.05766.pdf
+pval = (sum(mean_diff_perm > mean_diff_real) + 1) / (n_perm + 1);
+
+end
+
+%% Function to make violin plots
 
 function [hf, vs] = make_violin(mats_over_days, chan_names, category_snames, category_hr_names)
 % sname = struct name, hr_name = human-readable name (cells),
@@ -463,7 +528,13 @@ violin_colors = struct(...
     'SameRegionNonL4', [0 0 0.5], ...
     'CrossRegion', [1 0 0], ...
     'CrossRegionL4', [1 0.5 0.5], ...
-    'CrossRegionNonL4', [0.5 0 0] ...
+    'CrossRegionNonL4', [0.5 0 0], ...
+    'InV1', [1, 0, 1], ...
+    'InV1L4', [1, 0.5, 1], ...
+    'InV1NonL4', [0.5, 0, 0.5], ...
+    'InM1', [0, 0.8, 0], ...
+    'InM1L4', [0.5, 1, 0.5], ...
+    'InM1NonL4', [0, 0.4, 0] ...
     );
 
 assert(length(category_snames) == length(category_hr_names), 'Mismatch in # of categories');
@@ -488,7 +559,7 @@ ca = gca;
 for k = 1:length(category_hr_names)
     labeltext = join(string(category_hr_names{k}), newline);
     text(k, ca.YLim(1), labeltext, 'HorizontalAlignment', 'center', ...
-        'VerticalAlignment', 'top');
+        'VerticalAlignment', 'top', 'FontName', 'Arial');
 end
 
 for kV = 1:nplots

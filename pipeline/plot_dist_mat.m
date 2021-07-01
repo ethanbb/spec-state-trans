@@ -1,4 +1,4 @@
-function hf = plot_dist_mat(dist_mats, chan_names, title_line2, dist_type, plot_type, chan_names_with_regions)
+function [hf, cb] = plot_dist_mat(dist_mats, chan_names, title_line2, dist_type, plot_type, chan_names_with_regions)
 % Plot a grid of score distances between pairs of channels (as obtained by score_dist_analysis)
 %
 % Inputs:
@@ -51,6 +51,7 @@ hold on;
 xlim([cols(1)-0.5, cols(end)+0.5]);
 ylim([rows(1)-0.5, rows(end)+0.5]);
 set(gca, 'YDir', 'reverse');
+set(gca, 'FontName', 'Arial'); % key for importing to illustrator
 
 if ~exist('dist_type', 'var') || isempty(dist_type)
     dist_type = 'kl_div';
@@ -127,7 +128,7 @@ box off;
 yl = ylabel(chan1_label);
 xl = xlabel(chan2_label);
 
-colorbar;
+cb = colorbar;
 
 if exist('chan_names_with_regions', 'var') && ~isempty(chan_names_with_regions)
     % add region labels  
@@ -142,6 +143,7 @@ if exist('chan_names_with_regions', 'var') && ~isempty(chan_names_with_regions)
     yl.Units = 'normalized';
     ytext_pos_norm = ax_pos(1) + (yl.Extent(1)+yl.Extent(3)) * ax_pos(3);
     make_ytext = @(loc, t) text(ytext_pos, loc, t, ...
+        'FontName', 'Arial', ...
         'FontWeight', 'bold', ...
         'Interpreter', 'none', ...
         'HorizontalAlignment', 'right');
@@ -150,6 +152,7 @@ if exist('chan_names_with_regions', 'var') && ~isempty(chan_names_with_regions)
     xl.Units = 'normalized';
     xtext_pos_norm = ax_pos(2) + (xl.Extent(2)+xl.Extent(4)) * ax_pos(4);
     make_xtext = @(loc, t) text(loc, xtext_pos, t, ...
+        'FontName', 'Arial', ...
         'FontWeight', 'bold', ...
         'Interpreter', 'none');
     
@@ -169,9 +172,9 @@ if exist('chan_names_with_regions', 'var') && ~isempty(chan_names_with_regions)
             
             if kC <= rows(end)
                 % dotted line between tick labels
-                ypos_norm = data_to_y_norm(end_pos);
-                annotation('line', ytext_pos_norm - [0.05, 0], [ypos_norm, ypos_norm], ...
-                    'LineStyle', ':', 'LineWidth', 1);
+%                 ypos_norm = data_to_y_norm(end_pos);
+%                 annotation('line', ytext_pos_norm - [0.05, 0], [ypos_norm, ypos_norm], ...
+%                     'LineStyle', ':', 'LineWidth', 1);
                 
                 % heavy line separating regions in plot
                 switch plot_type
@@ -195,9 +198,9 @@ if exist('chan_names_with_regions', 'var') && ~isempty(chan_names_with_regions)
             
             if kC <= cols(end)
                 % dotted line between tick labels
-                xpos_norm = data_to_x_norm(end_pos);
-                annotation('line', [xpos_norm, xpos_norm], xtext_pos_norm + [0.01, -0.04], ...
-                    'LineStyle', ':', 'LineWidth', 1);
+%                 xpos_norm = data_to_x_norm(end_pos);
+%                 annotation('line', [xpos_norm, xpos_norm], xtext_pos_norm + [0.01, -0.04], ...
+%                     'LineStyle', ':', 'LineWidth', 1);
                 
                 % heavy line separating regions in plot
                 switch plot_type
