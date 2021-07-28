@@ -6,8 +6,8 @@ rec_names = {
     '2020-10-26_11-30-00'
     '2020-10-26_13-31-00'
     '2020-10-26_15-33-00'
-    '2020-10-27_13-04-00'
-    '2020-10-27_15-05-00'
+%     '2020-10-27_13-04-00'
+%     '2020-10-27_15-05-00' # exclude due to hard-to-interpret csd
     '2020-10-28_12-29-00'
     '2020-10-28_14-31-00'
     '2020-10-28_16-45-00'
@@ -26,18 +26,18 @@ n_dates = length(rec_dates);
 
 probe_s = struct('Probe1', 'M1', 'Probe2', 'V1');
 
-bad_chans_t = table(struct('Probe1', cell(n_dates, 1), 'Probe2', cell(n_dates, 1)), ...
-    'VariableNames', {'bad_chans'}, 'RowNames', rec_dates);
-
-bad_chans_t.bad_chans('2020-10-27').Probe1 = 15;
-
-% all days had channel 29 bad on V1 (Probe2)
+% exclude bad channels noted in recording info (based on depth, artifacts)
+bad_chans = cell(n_dates, 1);
 for kD = 1:n_dates
-    bad_chans_t.bad_chans(kD).Probe2 = 29;
-end
-
-for kD = 1:n_dates
-    plot_csd(rec_dates{kD}, probe_s, bad_chans_t.bad_chans(kD));
+    date_recs = recs_dates_times(strcmp(recs_dates_times(:, 2), rec_dates{kD}), 1);
+    rec1 = date_recs{1};
+    rec1_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', rec1)));
+    rec1_info = rec1_mfile.info;
+    noise_chans = rec1_info.noiseChannels;
+    
+    bad_chans{kD}.Probe1 = noise_chans(noise_chans <= 64);
+    bad_chans{kD}.Probe2 = noise_chans(noise_chans > 64) - 64;
+    plot_csd(rec_dates{kD}, probe_s, bad_chans{kD});
 end
 
 %% Pick channels - L4 and steps of 140 um up and down
@@ -50,7 +50,7 @@ layer_names = [
 
 for kD = 1:n_dates
     pick_csd_channels(fullfile(sr_dirs.results, rec_dates{kD}), ...
-        depths_um, layer_names, 'V1', {'M1'}, true);
+        depths_um, layer_names, 'V1', {'M1'}, true, bad_chans{kD}.Probe2, {bad_chans{kD}.Probe1});
 end
 
 %% Scan for burst suppression
@@ -61,9 +61,13 @@ bs_artifacts = cell(n_recs, 1);
 for kR = 1:n_recs
     %%
     data_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', rec_names{kR})));
+    data_info = data_mfile.info;
+    noise_chans = data_info.noiseChannels;
     n = size(data_mfile, 'meanSubFullTrace', 1);
+    non_noisechans = setdiff(1:n, noise_chans);
+    chans_to_use = non_noisechans(round(linspace(1, length(non_noisechans), 4)));
     bs_dur_thresh = 2;
-    bs_segments = find_likely_bs(data_mfile, round(linspace(1, n, 4)), bs_dur_thresh);
+    bs_segments = find_likely_bs(data_mfile, chans_to_use, bs_dur_thresh);
     %disp(bs_segments)
     bs_artifacts{kR} = bs_segments;
 

@@ -1,5 +1,5 @@
 function fh = pick_csd_channels(csd_dir, layers_um, layer_names, ...
-        main_probe, aligned_probes, dock_figs)
+        main_probe, aligned_probes, dock_figs, bad_chans, aligned_bad_chans)
 % Given a directory containing CSD result csd.fig, display a simple GUI to 
 % identify layer 4 in V1 and other layers relative to it. Defaults to
 % L2/3 (or supergranular), L4, L5 (or infragranular) and L5B (deeper point in infragranular).
@@ -8,21 +8,25 @@ function fh = pick_csd_channels(csd_dir, layers_um, layer_names, ...
 % aligned_probes is a cell of other probe names/regions which are aligned and into whose matfiles the
 % same channel numbers should also be saved (e.g. {'M1'})
 %
+% bad_chans (for the V1 probe) can be manually specified. Also, if aligned_bad_chans (a cell the
+% same size as aligned_probes) is supplied, the process of filtering out bad channels will be done
+% separately for the aligned probes.
+%
 % In a script, to wait until the selection process is done before proceeding, call with uiwait,
 % as in: uiwait(pick_csd_channels(...));
-
-if ~exist('layers_um', 'var') || isempty(layers_um)
-    layers_um = [270, 580, 955, 1200];
-end
-
-if ~exist('layer_names', 'var') || isempty(layer_names)
-    layer_names = {'L2/3', 'L4', 'L5', 'L5B'};
-end
 
 if exist('aligned_probes', 'var')
     assert(iscell(aligned_probes), 'Aligned probes must be passed as a cell');
 else
     aligned_probes = {};
+end
+
+if exist('aligned_bad_chans', 'var') && ~isempty(aligned_bad_chans)
+    assert(iscell(aligned_bad_chans), 'Aligned-probe bad channels must be passed as a cell');
+    assert(numel(aligned_probes) == numel(aligned_bad_chans), ...
+        'Number of aligned-probe bad channel vectors does not match number of aligned probes');
+else
+    aligned_bad_chans = [];
 end
 
 if ~exist('dock_figs', 'var') || isempty(dock_figs)
@@ -43,7 +47,11 @@ time_axis = s_csd.time_axis;
 depth_axis = s_csd.depth_axis;
 chan_axis = s_csd.chan_axis;
 csd = s_csd.csd;
-bad_chans = chan_axis(any(isnan(csd), 2));
+
+if ~exist('bad_chans', 'var')
+    % infer from csd (will always consider channels not included in the CSD as good)
+    bad_chans = chan_axis(any(isnan(csd), 2));
+end
 
 b_after_stim = time_axis >= 0 & time_axis <= 100;
 time_after_stim = time_axis(b_after_stim);
@@ -113,28 +121,12 @@ if ~isempty(new_chan)
 end
 
 % save best possible chans for V1 to matfile
-chan_inds_v1 = l4_chan + layers_chans;
-chan_inds_v1(chan_inds_v1 < 1) = nan;
-chan_inds_v1(chan_inds_v1 > total_chans) = nan;
+chan_inds_base = l4_chan + layers_chans;
+chan_inds_base(chan_inds_base < 1) = nan;
+chan_inds_base(chan_inds_base > total_chans) = nan;
 
 % deal with if any are bad chans
-selected_bad = find(ismember(chan_inds_v1, bad_chans));
-for kB = 1:length(selected_bad)
-    bad_ind = selected_bad(kB);
-    bad_chan = chan_inds_v1(bad_ind);
-    
-    % try to substitute with one lower or higher
-    bad_chans_aug = [0; bad_chans(:); total_chans + 1];
-    
-    if ~ismember(bad_chan + 1, bad_chans_aug)
-        chan_inds_v1(bad_ind) = bad_chan + 1;
-    elseif ~ismember(bad_chan - 1, bad_chans_aug)
-        chan_inds_v1(bad_ind) = bad_chan - 1;
-    else
-        % just skip it
-        chan_inds_v1(bad_ind) = nan;
-    end
-end
+chan_inds_v1 = modify_selected_chans_given_bad(chan_inds_base, bad_chans, total_chans);
 
 % plot layers on the figure and choose which ones to keep
 cb_x_pos = 0.9;
@@ -173,18 +165,28 @@ end
 
     function save_callback(~, ~)
         chans_to_keep = [cboxes.Value] == [cboxes.Max];
-        layer_names = layer_names(chans_to_keep);
+        layer_names_v1 = layer_names(chans_to_keep);
         chan_inds_v1 = chan_inds_v1(chans_to_keep);
         
-        s_csd.chan_names = layer_names;
+        s_csd.chan_names = layer_names_v1;
         s_csd.chans = chan_inds_v1;
         
         % now save to aligned probe files as well
         for kP = 1:numel(aligned_probes)
             probe = aligned_probes{kP};
             s_csd = matfile(fullfile(csd_dir, sprintf('csd_%s.mat', probe)), 'Writable', true);
-            s_csd.chan_names = layer_names;
-            s_csd.chans = chan_inds_v1;
+            
+            if iscell(aligned_bad_chans)
+                % use this probe's own bad channels
+                chan_inds_this = modify_selected_chans_given_bad(chan_inds_base, ...
+                    aligned_bad_chans{kP}, total_chans);
+                chans_to_keep = ~isnan(chan_inds_this);
+                s_csd.chan_names = layer_names(chans_to_keep);
+                s_csd.chans = chan_inds_this(chans_to_keep);
+            else
+                s_csd.chan_names = layer_names_v1;
+                s_csd.chans = chan_inds_v1;
+            end
         end
         
         if isvalid(fh)
@@ -197,5 +199,29 @@ save_btn.Position(1) = 0.9;
 
 disp('On the figure, check the boxes for the channels to keep for analysis and press "Save"');
 uiwait(fh);
+
+end
+
+function selected_chans = modify_selected_chans_given_bad(selected_chans, bad_chans, total_chans)
+% Set entries of a selected channel vector to nan and/or tweak them by at most 1 to
+% avoid bad channels
+
+selected_bad = find(ismember(selected_chans, bad_chans));
+for kB = 1:length(selected_bad)
+    bad_ind = selected_bad(kB);
+    bad_chan = selected_chans(bad_ind);
+    
+    % try to substitute with one lower or higher, without leaving the probe
+    bad_chans_aug = [0; bad_chans(:); total_chans + 1];
+    
+    if ~ismember(bad_chan + 1, bad_chans_aug)
+        selected_chans(bad_ind) = bad_chan + 1;
+    elseif ~ismember(bad_chan - 1, bad_chans_aug)
+        selected_chans(bad_ind) = bad_chan - 1;
+    else
+        % just skip it
+        selected_chans(bad_ind) = nan;
+    end
+end
 
 end

@@ -49,9 +49,13 @@ bs_artifacts = cell(n_recs, 1);
 for kR = 1:n_recs
     %%
     data_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', rec_names{kR})));
+    data_info = data_mfile.info;
+    noise_chans = data_info.noiseChannels;
     n = size(data_mfile, 'meanSubFullTrace', 1);
+    non_noisechans = setdiff(1:n, noise_chans);
+    chans_to_use = non_noisechans(round(linspace(1, length(non_noisechans), 4)));
     bs_dur_thresh = 2;
-    bs_segments = find_likely_bs(data_mfile, round(linspace(1, n, 4)), bs_dur_thresh);
+    bs_segments = find_likely_bs(data_mfile, chans_to_use, bs_dur_thresh);
     bs_artifacts{kR} = bs_segments;
 
     if exist('check_bs', 'var') && check_bs
@@ -75,18 +79,35 @@ probe_s = struct('Probe1', 'V1L', 'Probe2', 'V1R');
 bad_chans_t = table(struct('Probe1', cell(n_dates, 1), 'Probe2', cell(n_dates, 1)), ...
     'VariableNames', {'bad_chans'}, 'RowNames', rec_dates);
 
+% exclude bad channels noted in recording info, + others
+bad_chans = cell(n_dates, 1);
 common_bad_r_chan_dates = {'2021-01-27', '2021-01-29', '2021-01-31'};
-for kD = 1:length(common_bad_r_chan_dates)
-    bad_chans_t.bad_chans(common_bad_r_chan_dates{kD}).Probe2 = [39, 53];
-end
-
-bad_chans_t.bad_chans('2021-01-29').Probe2(end+1) = 40;
-bad_chans_t.bad_chans('2021-02-02').Probe1 = 29;
-
 stim_event_chan_s = struct('Probe1', 2, 'Probe2', 1);
 
-for kD = 1:length(rec_dates)
-    plot_csd(rec_dates{kD}, probe_s, bad_chans_t.bad_chans(kD), [], rec_mt_info, stim_event_chan_s);
+for kD = 1:n_dates
+    this_date = rec_dates{kD};
+    date_recs = recs_dates_times(strcmp(recs_dates_times(:, 2), rec_dates{kD}), 1);
+    rec1 = date_recs{1};
+    rec1_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s.mat', rec1)));
+    rec1_info = rec1_mfile.info;
+    noise_chans = rec1_info.noiseChannels;
+    bad_chans{kD}.Probe1 = noise_chans(noise_chans <= 64);
+    bad_chans{kD}.Probe2 = noise_chans(noise_chans > 64) - 64;
+    
+    % add other bad channels
+    if ismember(this_date, common_bad_r_chan_dates)
+        bad_chans{kD}.Probe2 = union(bad_chans{kD}.Probe2, [39, 53]);
+    end
+    
+    if strcmp(this_date, '2021-01-29')
+        bad_chans{kD}.Probe2 = union(bad_chans{kD}.Probe2, 40);
+    end
+    
+    if strcmp(this_date, '2021-02-02')
+        bad_chans{kD}.Probe1 = union(bad_chans{kD}.Probe1, 29);
+    end
+    
+    plot_csd(rec_dates{kD}, probe_s, bad_chans{kD}, [], rec_mt_info, stim_event_chan_s);
 end
 
 %% Pick channels - L4 and steps of 140 um up and down
@@ -97,7 +118,7 @@ layer_names = [
     arrayfun(@(k) ['Inf', num2str(k)], 1:8, 'uni', false)
     ];
 
-%%
+
 for kD = 1:length(rec_dates)
     %%
     rec_dir = fullfile(sr_dirs.results, rec_dates{kD});
