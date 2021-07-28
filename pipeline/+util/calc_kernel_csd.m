@@ -1,4 +1,4 @@
-function [csd, valid_chans] = calc_kernel_csd(chan_data, bad_chans, b_ouput_interp, b_trim)
+function [csd, valid_chans] = calc_kernel_csd(chan_data, bad_chans, b_output_interp, b_trim)
 % Compute a 2nd spatial derivative CSD over the channels of chan_data.
 % bad_chans is a vector of channel indices that should not be included.
 % b_output_interp: values for bad channels are interpolated before doing the CSD. If this flag is
@@ -9,7 +9,7 @@ function [csd, valid_chans] = calc_kernel_csd(chan_data, bad_chans, b_ouput_inte
 % Output valid_chans is just those that are covered by the kernel (without regard for bad chans)
 
 % defaults
-b_ouput_interp = exist('b_interpolate', 'var') && b_ouput_interp;
+b_output_interp = exist('b_output_interp', 'var') && b_output_interp;
 b_trim = exist('b_trim', 'var') && b_trim;
 
 % prep constants
@@ -36,8 +36,9 @@ kernel = (-(sigma^2 - support.^2)/(sigma^5*sqrt(2*pi))) .* ...
 chan_data(bad_chans, :) = interp1(good_chans, chan_data(good_chans, :), bad_chans);
 csd = convn(chan_data, kernel.', 'valid');
 
-if ~b_ouput_interp
-    csd(bad_chans - n_edge, :) = nan;
+if ~b_output_interp
+    valid_bad_chans = intersect(bad_chans - n_edge, valid_chans);
+    csd(valid_bad_chans, :) = nan;
 end
 
 if ~b_trim
