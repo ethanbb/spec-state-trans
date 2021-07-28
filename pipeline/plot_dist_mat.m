@@ -8,6 +8,7 @@ function [hf, cb] = plot_dist_mat(dist_mats, chan_names, title_line2, dist_type,
 %   dist_type: what kind of distance this is - see switch statement below for options
 %   plot_type (optional): one of:
 %       'full' (default): plot the full matrix
+%       'full_nodiag': upper and lower triangles, but diagonal is nan
 %       'lower': lower triangle, including diagonal
 %       'lower_nodiag': lower triangle, not including diagonal
 %       'upper', 'upper_nodiag'
@@ -29,6 +30,8 @@ cols = 1:n_chans;
 rows = cols';
 switch plot_type
     case 'full' % do nothing
+    case 'full_nodiag'
+        mean_dist_mat(cols == rows) = nan;
     case 'lower'
         mean_dist_mat(cols > rows) = nan;
     case 'lower_nodiag'
@@ -58,18 +61,18 @@ if ~exist('dist_type', 'var') || isempty(dist_type)
 end
 
 interpreter = 'latex';
-chan1_label = 'Channel 1 (depth in um)';
-chan2_label = 'Channel 2 (depth in um)';
+chan1_label = 'Channel 1 depth (um)';
+chan2_label = 'Channel 2 depth (um)';
 
 switch dist_type
     case 'kl_div'
         title_line1 = 'NMF score KL divergence - $$\min_X \mathbf{E}[D_{KL}(V_j || V_iX)]$$';
-        chan1_label = 'Channel i (depth in $$\mu$$m)';
-        chan2_label = 'Channel j (depth in $$\mu$$m)';
+        chan1_label = 'Channel i depth ($$\mu$$m)';
+        chan2_label = 'Channel j depth ($$\mu$$m)';
     case 'L2_dist'
         title_line1 = 'Euclidean score distance - $$\min_X \|V_j - V_iX\|_F$$';
-        chan1_label = 'Channel i (depth in $$\mu$$m)';
-        chan2_label = 'Channel j (depth in $$\mu$$m)';
+        chan1_label = 'Channel i depth ($$\mu$$m)';
+        chan2_label = 'Channel j depth ($$\mu$$m)';
     case 'L2_dist_from_null'
         title_line1 = 'Euclidean score proximity compared to null model';
     case 'recon_err'
@@ -85,19 +88,19 @@ switch dist_type
         title_line1 = 'Mutual information of classes between channels';
         interpreter = 'none';
     case 'norm_mutual_info'
-        title_line1 = 'Norm. mut. info. of classes between channels';
+        title_line1 = 'Normalized mutual information of classes';
         interpreter = 'none';
     case 'norm_mutual_info_z'
-        title_line1= 'NMI of classes between channels - z-score against null model';
+        title_line1 = 'Normalized mutual information of classes - z-score against null model';
         interpreter = 'none';
     case 'trans_sync_scores'
-        title_line1 = 'Discrete class transition mean synchrony';
+        title_line1 = 'Synchronization of class transitions';
         interpreter = 'none';
     case 'trans_sync_scores_z'
-        title_line1 = 'Discrete class transition synchrony - z-score against null model';
+        title_line1 = 'Synchronization of class transitions - z-score against null model';
         interpreter = 'none';
     case 'cca'
-        title_line1 = 'Mean canonical correlation of NMF scores';
+        title_line1 = 'Canonical correlation of NMF scores';
         interpreter = 'none';
     case 'cca_z'
         title_line1 = 'Canonical correlation of NMF scores - z-score against null model';
@@ -178,7 +181,7 @@ if exist('chan_names_with_regions', 'var') && ~isempty(chan_names_with_regions)
                 
                 % heavy line separating regions in plot
                 switch plot_type
-                    case 'full'
+                    case {'full', 'full_nodiag'}
                         sep_x = [cols(1)-0.5, cols(end)+0.5];
                     case {'upper', 'upper_nodiag'}
                         sep_x = [end_pos, cols(end)+0.5];
@@ -204,7 +207,7 @@ if exist('chan_names_with_regions', 'var') && ~isempty(chan_names_with_regions)
                 
                 % heavy line separating regions in plot
                 switch plot_type
-                    case 'full'
+                    case {'full', 'full_nodiag'}
                         sep_y = [rows(1)-0.5, rows(end)+0.5];
                     case {'upper', 'upper_nodiag'}
                         sep_y = [rows(1)-0.5, end_pos];

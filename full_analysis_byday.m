@@ -25,7 +25,7 @@ exp_info = [
 %             '2020-03-11'
             % not using any of the above - short probe recordings
             '2020-10-26'
-            '2020-10-27'
+%             '2020-10-27'
             '2020-10-28'
             '2020-10-29'
         }})
@@ -39,7 +39,7 @@ exp_info = [
     struct('type', 'm1_v1_csd', 'all_chan_names', make_layer_names(["M1", "V1"]), ...
         'days', {{
             '2020-10-26_csd'
-            '2020-10-27_csd'
+%             '2020-10-27_csd'
             '2020-10-28_csd'
             '2020-10-29_csd'
         }})
@@ -97,7 +97,6 @@ n_shuffle = 1000;
 cdf_interp_vals = 0:0.01:1;
 
 all_chan_names = cell(length(exp_info), 1); 
-hr_chan_names = cell(length(exp_info), 1); % human-readable
 mut_info_combined = cell(length(exp_info), 1);
 mut_info_shuffle = cell(length(exp_info), 1);
 all_cca = cell(length(exp_info), 1);
@@ -111,7 +110,6 @@ for kE = 1:length(exp_info)
     this_ndays = length(this_info.days);
 
     all_chan_names{kE} = this_info.all_chan_names;
-    hr_chan_names{kE} = util.make_hr_chan_names(all_chan_names{kE}, 140);
     n_chans = length(all_chan_names{kE});
 
     % gather distance information from each recording
@@ -133,6 +131,10 @@ for kE = 1:length(exp_info)
         this_mfile = matfile(this_info.input_s(kD).nmf_res_out, 'Writable', true);
         this_chans = this_mfile.all_chans;
         this_n_chans = length(this_chans);
+        
+        % get "human readable channel names" i.e. depths
+        mt_mfile = matfile(mt_paths{1});
+        this_hr_chan_names = util.make_hr_chan_names(this_chans, mt_mfile.chan_locs);
                 
         % compute transition sync scores
         trans_table = get_state_transitions(mt_paths, this_mfile);
@@ -154,30 +156,36 @@ for kE = 1:length(exp_info)
         pair_sync_scores = calc_pair_sync_scores(trans_table, this_chans);
         
         % make individual pairwise sync score plot
-        this_hr_chan_names = util.make_hr_chan_names(this_chans, 140);
-        fh = plot_dist_mat(pair_sync_scores, this_hr_chan_names, this_day, ...
-            'trans_sync_scores', 'lower_nodiag', this_chans);
+        fh = plot_dist_mat(pair_sync_scores, this_hr_chan_names, [], ...
+            'trans_sync_scores', 'full_nodiag', this_chans);
         savefig(fh, fullfile(sr_dirs.results, this_day, sprintf('pair_sync_scores_%s.fig', this_day)));
+        % since this is symmetric and we don't want to duplicate samples,
+        % nan-out the upper triangular part
+        pair_sync_scores(1:this_n_chans >= (1:this_n_chans)') = nan;
         
         % compute mutual information
         classes = this_mfile.filtered_classes;
-
-        % use 1st run
         classes = horzcat(classes{1}{:});
         [~, norm_mut_info] = class_mut_info(classes);
-        % since this is symmetric and we don't want to duplicate samples,
-        % nan-out the upper triangular part
-        norm_mut_info(1:this_n_chans >= (1:this_n_chans)') = nan;
         
         % plot mutual information
-        fh = plot_dist_mat(norm_mut_info, this_hr_chan_names, this_day, 'norm_mutual_info', ...
-            'lower_nodiag', this_chans);
+        fh = plot_dist_mat(norm_mut_info, this_hr_chan_names, [], 'norm_mutual_info', ...
+            'full_nodiag', this_chans);
         savefig(fh, fullfile(sr_dirs.results, this_day, sprintf('norm_mut_info_%s.fig', this_day)));
+        norm_mut_info(1:this_n_chans >= (1:this_n_chans)') = nan;
+        
+        % plot CCA
+        cca_mat = this_mfile.all_cca_sim;
+        cca_mat_sym = cca_mat;
+        cca_mat_sym(isnan(cca_mat_sym)) = 0;
+        cca_mat_sym = cca_mat_sym + cca_mat_sym';
+        fh = plot_dist_mat(cca_mat_sym, this_hr_chan_names, [], 'cca', 'full_nodiag', this_chans);
+        savefig(fh, fullfile(sr_dirs.results, this_day, sprintf('cca_%s_all.fig', this_day)));
         
         % save data to 3D array
         insert_inds = cellfun(@(c) find(strcmp(all_chan_names{kE}, c)), this_chans);
         mut_info_combined{kE}(insert_inds, insert_inds, kD) = norm_mut_info;
-        all_cca{kE}(insert_inds, insert_inds, kD) = this_mfile.all_cca_sim;
+        all_cca{kE}(insert_inds, insert_inds, kD) = cca_mat;
         all_pair_sync_scores{kE}(insert_inds, insert_inds, kD) = pair_sync_scores;
         
         % also do bootstraps
@@ -262,7 +270,6 @@ for kE = 1:length(exp_info)
     nonempty_chans = nonempty_cols | nonempty_rows;
     
     all_chan_names{kE} = all_chan_names{kE}(nonempty_chans);
-    hr_chan_names{kE} = hr_chan_names{kE}(nonempty_chans);
     mut_info_combined{kE} = mut_info_combined{kE}(nonempty_chans, nonempty_chans, :);
     mut_info_shuffle{kE} = mut_info_shuffle{kE}(nonempty_chans, nonempty_chans, :, :);
     all_cca{kE} = all_cca{kE}(nonempty_chans, nonempty_chans, :);
@@ -287,7 +294,7 @@ pairwise_stats_shuffle = struct(...
     );
 
 
-analysis_names = fieldnames(pairwise_stats);
+analysis_names = fieldnames(pairwise_stats_shuffle);
 
 for kE = 1:length(exp_info)
     for kA = 1:length(analysis_names)
@@ -299,90 +306,264 @@ for kE = 1:length(exp_info)
 end
 
 %%
-save(fullfile(ssr_dirs.results, 'analysis_info.mat'), 'exp_types', 'n_shuffle', 'all_chan_names', ...
-   'hr_chan_names', 'pairwise_stats', 'pairwise_stats_shuffle', 'shuffle_seeds', 'exp_info', '-v7.3');
+save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'exp_types', 'n_shuffle', 'all_chan_names', ...
+   'pairwise_stats', 'pairwise_stats_shuffle', 'shuffle_seeds', 'exp_info', 'analysis_names', '-v7.3');
+
+
+%% Do (actual) bootstrap for bilateral vs. M1/V1 cross-region contrast
+n_boot = 1e6;
+boot_pvals_bilat_vs_m1v1 = struct;
+ref_types = {'meansub', 'csd'};
+
+for kR = 1:length(ref_types)
+    rtype = ref_types{kR};
+    res_mats{1} = pairwise_stats(kR*2 - 1); % M1/V1
+    chan_names{1} = all_chan_names{kR*2 - 1};
+    res_mats{2} = pairwise_stats(kR*2); % bilateral
+    chan_names{2} = all_chan_names{kR*2};
+    
+    for kA = 1:length(analysis_names)
+        aname = analysis_names{kA};
+        cross_means = zeros(2, n_boot);
+        actual_diff = 0;
+        
+        for kT = 1:2 % (type)
+            n_days = size(res_mats{kT}.(aname), 3);
+            
+            actual_sum = 0;
+            total_vals = 0;
+            for kD = 1:n_days
+                % trim matrix down to rows/cols present in this day
+                mat = res_mats{kT}.(aname)(:, :, kD);
+                empty_cols = all(isnan(mat));
+                empty_rows = all(isnan(mat'));
+                b_keep = ~empty_cols | ~empty_rows;
+                this_chans = chan_names{kT}(b_keep);
+                mat = mat(b_keep, b_keep);
+                
+                % find cross-region submatrix
+                if kT == 1
+                    chans1 = contains(this_chans, 'V1');
+                    chans2 = contains(this_chans, 'M1');
+                else
+                    chans1 = contains(this_chans, 'V1R');
+                    chans2 = contains(this_chans, 'V1L');
+                end
+                cross_mat = mat(chans1, chans2);
+                actual_sum = actual_sum + sum(cross_mat, 'all');
+                
+                % iterate over bootstraps and accumulate sums of permuted matrix
+                [m, n] = size(cross_mat);
+                total_vals = total_vals + m*n;
+                for kB = 1:n_boot
+                    perm1 = randsample(m, m, true);
+                    perm2 = randsample(n, n, true);
+                    perm_mat = cross_mat(perm1, perm2);
+%                     perm_mat = cross_mat(randsample(m*n, m*n, true)); % not legit - resampling whole matrix
+                    cross_means(kT, kB) = cross_means(kT, kB) + sum(perm_mat, 'all');
+                end
+            end
+            % convert sums to means
+            cross_means(kT, :) = cross_means(kT, :) / total_vals;            
+            if kT == 1
+                actual_diff = actual_diff - actual_sum / total_vals;
+            else
+                actual_diff = actual_diff + actual_sum / total_vals;
+            end
+        end
+        
+        % collect bootstrap sample
+        boot_diffs = diff(cross_means);
+        
+        % since this distribution is centered at the actual statistic value, want to find prob.
+        % that it is > 2 * this value.
+        boot_pvals_bilat_vs_m1v1.(rtype).(aname) = (sum(boot_diffs >= 2*actual_diff)+1)/(n_boot+1);
+    end
+end
+
+save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'boot_pvals_bilat_vs_m1v1', '-append');
 
 %% Get channel permutation test distributions and p-values for contrasts
 n_perm = 1e7;
-contrasts(1).name = 'SameVsCross';
-contrasts(1).type1 = 'SameRegion';
-contrasts(1).type2 = 'CrossRegion';
 
-contrasts(2).name = 'V1_NonL4VsL4';
-contrasts(2).type1 = 'InV1NonL4';
-contrasts(2).type2 = 'InV1L4';
+kC = 1;
+contrasts(kC).name = 'SameVsCross';
+contrasts(kC).type1 = 'SameRegion';
+contrasts(kC).type2 = 'CrossRegion';
+contrasts(kC).chans_to_shuffle = ""; % (all)
 
-perm_seeds = zeros(length(exp_info), 1);
-perm_test_res = cell2struct(cell(length(analysis_names), length(exp_info)), analysis_names, 1);
+% region-specific
+for reg = ["V1", "M1", "V1L", "V1R"]
+    kC = kC + 1;
+    contrasts(kC).name = sprintf('%sVsCross', reg);
+    contrasts(kC).type1 = sprintf('In%s', reg);
+    contrasts(kC).type2 = 'CrossRegion';
+    contrasts(kC).chans_to_shuffle = "";
+end
 
-% comparing bilateral to M1/V1
-cross_exp_contrasts(1).name = 'Cross_BilatVsM1V1';
-cross_exp_contrasts(1).type = 'CrossRegion';
+for reg = ["V1", "V1L", "V1R"]
+    kC = kC + 1;
+    contrasts(kC).name = sprintf('%s_NonL4VsL4', reg);
+    contrasts(kC).type1 = sprintf('In%sNonL4', reg);
+    contrasts(kC).type2 = sprintf('In%sL4', reg);
+    contrasts(kC).chans_to_shuffle = reg + "_"; % to guarantee it's an exact match for V1
+end
 
-cross_exp_perm_test_res = perm_test_res(1:2);
-cross_exp_perm_test_res(1).exp_type = sprintf('%s_vs_%s', exp_types{[2,1]});
-cross_exp_perm_test_res(2).exp_type = sprintf('%s_vs_%s', exp_types{[4,3]});
+% Combined V1 L4 vs. non-L4 for bilateral
+kC = kC + 1;
+contrasts(kC).name = 'V1LR_NonL4VsL4';
+contrasts(kC).type1 = 'InV1NonL4';
+contrasts(kC).type2 = 'InV1L4';
+contrasts(kC).chans_to_shuffle = "V1L/V1R";
 
-for kE = 1:length(exp_info)
+shuffle_chansets = unique([contrasts.chans_to_shuffle], 'stable');
+contrasts_by_shuffle_chanset = arrayfun(@(cs) contrasts([contrasts.chans_to_shuffle] == cs), ...
+    shuffle_chansets, 'uni', false);
+
+shuffle_chansets = shuffle_chansets(end);
+contrasts_by_shuffle_chanset = contrasts_by_shuffle_chanset(end);
+% perm_test_res = cell2struct(cell(length(analysis_names) + 2, length(exp_info)), ...
+%     [analysis_names; {'seed'; 'exp_type'}], 1);
+
+for kE = 2 % 1:length(exp_info)
     rng('shuffle');
     rstate = rng;
     perm_test_res(kE).seed = rstate.Seed;
     perm_test_res(kE).exp_type = exp_types{kE};
     
-    chan_names = all_chan_names{kE};
-    
-    % for bilateral vs. m1/v1 (cross-experiment) contrasts
-    ce_ind = floor((kE-1) / 2) + 1;
-    if mod(kE, 2) == 0
-        posneg = 'pos';
-    else
-        posneg = 'neg';
-    end
+    % do days individually
+    this_info = exp_info(kE);
+    this_ndays = length(this_info.days);
     
     for kA = 1:length(analysis_names)
         aname = analysis_names{kA};
-        stats_by_type = util.categorize_pair_data(pairwise_stats(kE).(aname), chan_names);
-        for kC = 1:length(contrasts)
-            cname = contrasts(kC).name;
-            vec1 = stats_by_type.(contrasts(kC).type1);
-            vec2 = stats_by_type.(contrasts(kC).type2);
-            
-            perm_test_res(kE).(aname).(cname).data.pos = vec1;
-            perm_test_res(kE).(aname).(cname).data.neg = vec2;
-            perm_test_res(kE).(aname).(cname).pval = perm_test(vec1, vec2, n_perm);
-            
+        trimmed_mats = cell(this_ndays, 1);
+        trimmed_chans = cell(this_ndays, 1);
+        for kD = this_ndays:-1:1
+            % trim matrix down to rows/cols present in this day
+            mat = pairwise_stats(kE).(aname)(:, :, kD);
+            empty_cols = all(isnan(mat));
+            empty_rows = all(isnan(mat'));
+            b_keep = ~empty_cols | ~empty_rows;
+            trimmed_chans{kD} = all_chan_names{kE}(b_keep);
+            day_masks(kD) = util.get_symmetric_matrix_masks(trimmed_chans{kD});
+            trimmed_mats{kD} = mat(b_keep, b_keep);
+            % make symmetric for permutation convenience (and we don't care about the diagonal)
+            n_kept = size(trimmed_mats{kD}, 1);
+            trimmed_mats{kD}(1:n_kept > (1:n_kept)') = 0;
+            trimmed_mats{kD} = trimmed_mats{kD} + trimmed_mats{kD}';
         end
         
-        for kC = 1:length(cross_exp_contrasts)
-            cname = cross_exp_contrasts(kC).name;
-            vec = stats_by_type.(cross_exp_contrasts(kC).type);            
-            cross_exp_perm_test_res(ce_ind).(aname).(cname).data.(posneg) = vec;
+        % loop through contrasts
+        for kS = 1:length(shuffle_chansets)
+            % split into independent permutation sets if necessary
+            this_chansets = split(shuffle_chansets{kS}, "/");
+            
+            % skip contrasts relating to channels that aren't present
+            if any(arrayfun(@(cs) ...
+                    ~any(contains(all_chan_names{kE}, cs)), ...
+                    this_chansets))
+                continue;
+            end
+            
+            n_chanset_contrasts = length(contrasts_by_shuffle_chanset{kS});
+            b_keep_contrast = true(n_chanset_contrasts, 1);
+            total_vals = zeros(n_chanset_contrasts, 2);
+            contrast_masks = cellfun(@(trimmed_mat) ...
+                false([size(trimmed_mat), n_chanset_contrasts, 2]), trimmed_mats, 'uni', false);
+            for kC = 1:n_chanset_contrasts
+                contrast = contrasts_by_shuffle_chanset{kS}(kC);
+                % get real data and mean difference 
+                vec1 = cell(this_ndays, 1);
+                vec2 = cell(this_ndays, 1);
+                
+                for kD = 1:this_ndays
+                    vec1{kD} = trimmed_mats{kD}(day_masks(kD).(contrast.type1));
+                    vec2{kD} = trimmed_mats{kD}(day_masks(kD).(contrast.type2));
+                end
+                vec1 = cell2mat(vec1);
+                vec2 = cell2mat(vec2);
+                
+                % skip contrasts relating to channel pair types that aren't present
+                if isempty(vec1) || isempty(vec2)
+                    b_keep_contrast(kC) = false;
+                else
+                    perm_test_res(kE).(aname).(contrast.name).data.pos = vec1;
+                    perm_test_res(kE).(aname).(contrast.name).data.neg = vec2;
+                    perm_test_res(kE).(aname).(contrast.name).real_diff = mean(vec1) - mean(vec2);
+                    total_vals(kC, 1) = length(vec1);
+                    total_vals(kC, 2) = length(vec2);
+                end
+            end
+            n_chanset_contrasts = sum(b_keep_contrast);
+            this_contrasts = contrasts_by_shuffle_chanset{kS}(b_keep_contrast);
+            total_vals = total_vals(b_keep_contrast, :);
+            
+            % now do permutation test on relevant contrasts
+            perm_contrast_diffs = zeros(n_chanset_contrasts, n_perm);
+            
+            for kD = 1:this_ndays
+                % permute
+                chans_to_permute = arrayfun(@(cs) find(contains(trimmed_chans{kD}, cs)), ...
+                    this_chansets, 'uni', false);
+                perm_lens = cellfun('length', chans_to_permute);
+                permutation = 1:length(trimmed_chans{kD});
+                
+                for kP = 1:n_perm
+                    for k = 1:length(chans_to_permute)
+                        permutation(chans_to_permute{k}) = chans_to_permute{k}(randperm(perm_lens(k)));
+                    end
+                    permuted_mat = trimmed_mats{kD}(permutation, permutation);
+
+                    for kC = 1:n_chanset_contrasts
+                        contrast = this_contrasts(kC);
+                        vec1 = permuted_mat(day_masks(kD).(contrast.type1));
+                        vec2 = permuted_mat(day_masks(kD).(contrast.type2));
+                        perm_contrast_diffs(kC, kP) = perm_contrast_diffs(kC, kP) + sum(vec1) / total_vals(kC, 1);
+                        perm_contrast_diffs(kC, kP) = perm_contrast_diffs(kC, kP) - sum(vec2) / total_vals(kC, 2);
+                    end
+                end
+            end
+            
+            % finally get pvalues
+            for kC = 1:n_chanset_contrasts
+                contrast = this_contrasts(kC);
+                real_diff = perm_test_res(kE).(aname).(contrast.name).real_diff;
+                pval = (sum(perm_contrast_diffs(kC, :) > real_diff) + 1) / (n_perm + 1);
+                perm_test_res(kE).(aname).(contrast.name).pval = pval;
+            end
         end
     end
-end
-
-% get cross-exp p-values
-for kE = 1:length(cross_exp_perm_test_res)
-    rng('shuffle');
-    rstate = rng;
-    cross_exp_perm_test_res(kE).seed = rstate.Seed;
     
-    for kA = 1:length(analysis_names)
-        aname = analysis_names{kA};                
-        for kC = 1:length(cross_exp_contrasts)
-            cname = cross_exp_contrasts(kC).name;
-            vec1 = cross_exp_perm_test_res(kE).(aname).(cname).data.pos;
-            vec2 = cross_exp_perm_test_res(kE).(aname).(cname).data.neg;
-            cross_exp_perm_test_res(kE).(aname).(cname).pval = perm_test(vec1, vec2, n_perm);
-        end
-    end
+%     for kA = 1:length(analysis_names)
+%         aname = analysis_names{kA};
+%         stats_by_type = util.categorize_pair_data(pairwise_stats(kE).(aname), chan_names);
+%         for kC = 1:length(contrasts)
+%             cname = contrasts(kC).name;
+%             vec1 = stats_by_type.(contrasts(kC).type1);
+%             vec2 = stats_by_type.(contrasts(kC).type2);
+%             
+%             if ~isempty(vec1) && ~isempty(vec2)
+%                 perm_test_res(kE).(aname).(cname).data.pos = vec1;
+%                 perm_test_res(kE).(aname).(cname).data.neg = vec2;
+%                 perm_test_res(kE).(aname).(cname).pval = perm_test(vec1, vec2, n_perm);
+%             end
+%         end
+%         
+%         for kC = 1:length(cross_exp_contrasts)
+%             cname = cross_exp_contrasts(kC).name;
+%             vec = stats_by_type.(cross_exp_contrasts(kC).type);            
+%             cross_exp_perm_test_res(ce_ind).(aname).(cname).data.(posneg) = vec;
+%         end
+%     end
 end
 
-save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'n_perm', 'perm_test_res', 'cross_exp_perm_test_res', '-append');
+
+% save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'n_perm', 'perm_test_res', '-append');
 
 %% Some things for figures
 
-analysis_names = fieldnames(perm_pvals);
+analysis_names = fieldnames(pairwise_stats_shuffle);
 
 hr_exp_names = struct(...
     'm1_v1',        'M1/V1', ...
@@ -396,34 +577,13 @@ analysis_titles = struct(...
     'trans_sync_scores','Synchronization of class transitions');
 
 analysis_ylabels = struct(...
-    'norm_mutual_info', 'Normalized MI (z-score)', ...
-    'cca',              'Mean CCA r (z-score)', ...
-    'trans_sync_scores','Mean transition SYNC score (z-score)');
+    'norm_mutual_info', 'Normalized MI', ...
+    'cca',              'Mean CCA r', ...
+    'trans_sync_scores','Mean transition SYNC score');
 
-%% Make combined matrix plots (means of z-scores)
-
-for kE = 1:length(exp_info)
-    exp_name = exp_info(kE).type;
-    exp_ndays = length(exp_info(kE).days);
-    
-    for kA = 1:length(analysis_names)
-        aname = analysis_names{kA};
-        zname = [aname, '_z'];
-        mean_z = mean(pairwise_stats(kE).(zname), 3, 'omitnan');
-        
-        [fh, cb] = plot_dist_mat(mean_z, hr_chan_names{kE}, ...
-            sprintf('%s, mean over %d days', hr_exp_names.(exp_name), exp_ndays), ...
-            zname, 'lower_nodiag', all_chan_names{kE});
-        
-        title(sprintf('%s (%s)', analysis_titles.(aname), hr_exp_names.(exp_name)));
-        cb.Label.String = 'z-score';
-        cb.Label.FontSize = 11;
-        
-        figname = sprintf('mean_%s_%s', zname, exp_name);
-        savefig(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.fig']));
-        saveas(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.svg']));
-    end
-end
+violin_colors = struct(...
+    'SameVsCross', [0, 0, 1; 1, 0, 0], ...
+    'V1_NonL4VsL4', [0.05, 0.6, 0.72; 0.3, 0, 0.5]);    
 
 %% Make violin plots, showing shuffled p-values for regional and L4 contrasts
 % for kE = 1:length(exp_info)
@@ -482,7 +642,7 @@ save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'exp_info', '-append');
 %% Function to get pairwise mean sync scores
 function pair_sync_scores = calc_pair_sync_scores(trans_table, chan_names)
 n_chans = length(chan_names);
-pair_sync_scores = nan(n_chans);
+pair_sync_scores = zeros(n_chans);
 
 % get indices of each channel's transitions
 chan_trans_inds = cellfun(@(cn) strcmp(trans_table.chan_name, cn), chan_names, 'uni', false);
@@ -494,6 +654,9 @@ for iC = 1:n_chans
         pair_sync_scores(iC, jC) = mean(pair_trans_table.sync_score);
     end
 end
+
+% make it a full matrix
+pair_sync_scores = pair_sync_scores + pair_sync_scores';
 
 end
 

@@ -7,17 +7,11 @@ function vals_bytype = categorize_pair_data(mats_over_days, chan_names)
 % Other pairs are in the corresponding NonL4 category depending on whether the region is the same.
 % chan_names should be a cell array of underscore-separated channel names (e.g. 'V1R_Sup1')
 % which is the same length as the first two dimensions of mats_over_days.
+%
+% This function has been mostly outsourced to get_symmetric_matrix_masks
+% but kept for old code.
 
-chan_names = string(chan_names(:));
-n_chans = length(chan_names);
-chan_name_parts = split(chan_names, "_");
-regions = chan_name_parts(:, 1);
-layers = chan_name_parts(:, 2);
-
-layer_isl4 = layers == "L4";
-pair_hasl4 = layer_isl4 | layer_isl4';
-same_region = regions == regions';
-same_channel = logical(eye(n_chans));
+s_masks = util.get_symmetric_matrix_masks(chan_names);
 
 % to broadcast along later dimensions
 if ismatrix(mats_over_days)
@@ -27,28 +21,7 @@ else
     get_masked_vals = @(mask) mats_over_days(repmat(mask, [1, 1, broadcast_dims]));   
 end
 
-vals_bytype.SameChannel = get_masked_vals(same_channel);
-vals_bytype.SameRegionL4 = get_masked_vals(~same_channel & pair_hasl4 & same_region);
-vals_bytype.SameRegionNonL4 = get_masked_vals(~same_channel & ~pair_hasl4 & same_region);
-vals_bytype.CrossRegionL4 = get_masked_vals(~same_channel & pair_hasl4 & ~same_region);
-vals_bytype.CrossRegionNonL4 = get_masked_vals(~same_channel & ~pair_hasl4 & ~same_region);
-vals_bytype.SameRegion = [vals_bytype.SameRegionL4; vals_bytype.SameRegionNonL4];
-vals_bytype.CrossRegion = [vals_bytype.CrossRegionL4; vals_bytype.CrossRegionNonL4];
-
-% region-specific
-regs_of_interest = ["V1", "M1"];
-for kR = 1:length(regs_of_interest)
-    reg = regs_of_interest(kR);
-    in_region = contains(regions, reg) & contains(regions, reg)';
-    
-    vals_bytype.(sprintf('In%sL4', reg)) = ...
-        get_masked_vals(~same_channel & pair_hasl4 & same_region & in_region);
-    vals_bytype.(sprintf('In%sNonL4', reg)) = ...
-        get_masked_vals(~same_channel & ~pair_hasl4 & same_region & in_region);
-    vals_bytype.(sprintf('In%s', reg)) = ...
-        [vals_bytype.(sprintf('In%sL4', reg)); vals_bytype.(sprintf('In%sNonL4', reg))];
-end
-
+vals_bytype = structfun(@(mask) get_masked_vals(mask), s_masks, 'uni', false);
 vals_bytype = structfun(@(v) v(~isnan(v)), vals_bytype, 'uni', false);
 
 end

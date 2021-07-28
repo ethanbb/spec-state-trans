@@ -2,9 +2,6 @@ function [lfp_organized, chans_used] = organize_lfp(data_s, req_chans, noise_ind
 % Returns a nchan x ntime LFP matrix with channels in data_s reordered according to
 % map in data_s. The input can also be a matfile object.
 %
-% Note that this switches probe 1 and probe 2 in order to put visual before
-% motor, which is currently my convention.
-%
 % When req_chans is not passed or empty, returns all channels in order according to the "Channels"
 % fields in the data file, which vary in the order they put the probes (but for the later ones,
 % motor is before visual) and within each probe the order is superficial to deep, 'left' to 'right'.
