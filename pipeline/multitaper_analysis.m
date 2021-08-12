@@ -103,7 +103,8 @@ elseif opts.artifacts(end, end) == -1
     % special case, go to end of recording
     opts.artifacts(end, end) = len_secs;
 end
-opts.artifacts = sortrows(opts.artifacts);
+% sort and remove overlapping
+opts.artifacts = util.normalize_artifacts(opts.artifacts);
 
 opts.clean_segs = [[0; opts.artifacts(:, 2)], [opts.artifacts(:, 1); len_secs]];
 clean_len = diff(opts.clean_segs, 1, 2);

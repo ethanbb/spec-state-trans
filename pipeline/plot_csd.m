@@ -77,6 +77,13 @@ for kF = 1:n_files
             % exclude artifacts
             event_chan = stim_event_chan_s.(probe);
             start_times = all_start_times{event_chan};
+            
+            % deal with fake signal from arduino
+            if numel(all_start_times) > 1 && all(diff(cellfun(@(st) st(1), all_start_times)) == 0)
+                start_times(1) = [];
+                snips{kP}{kF}(:, 1, :) = [];
+            end
+
             n_snippits = size(snips{kP}{kF}, 2);
             artifacts = artifact_table.artifacts{recnames{kF}};
             b_include_snippits = util.get_snippits_to_include(start_times, n_snippits, 1, 3, artifacts);

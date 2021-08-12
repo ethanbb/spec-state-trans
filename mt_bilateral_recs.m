@@ -4,8 +4,7 @@
 sr_dirs = prepSR;
 
 base_rec_names = {
-%     '2021-01-25_13-30-00'  % exclude 1/25 - left side is way too shallow or not in V1
-%     '2021-01-27_15-05-00'  % not yet preprocessed
+    '2021-01-27_15-05-00'
     '2021-01-29_13-46-00'
     '2021-01-29_15-22-00'
     '2021-01-31_14-12-00'
@@ -15,14 +14,12 @@ base_rec_names = {
 n_base_recs = length(base_rec_names);
 
 stim_rec_names = {
-%     '2021-01-25_14-32-00' % see above
-%     '2021-01-25_16-02-00'
-    '2021-01-27_11-00-00'
+%     '2021-01-27_11-00-00'  % exclude because the right probe drifted a ton. Can't align L4 if we include all data.
     '2021-01-27_12-32-00'
-    '2021-01-27_14-02-00'  % no snippits currently
+    '2021-01-27_14-02-00'
     '2021-01-29_10-39-00'
     '2021-01-29_12-09-00'
-    '2021-01-29_16-53-00'
+%     '2021-01-29_16-53-00' % too short
     '2021-01-31_09-52-00'
     '2021-01-31_11-21-00'
     '2021-01-31_12-39-00'
@@ -38,7 +35,7 @@ n_stim_recs = length(stim_rec_names);
 rec_names = sort([base_rec_names; stim_rec_names]);
 n_recs = n_base_recs + n_stim_recs;
 
-recs_dates_times = [rec_names, split(rec_names, '_')];
+recs_dates_times = [rec_names, split(rec_names, '_', 2)];
 rec_dates = unique(recs_dates_times(:, 2));
 n_dates = length(rec_dates);
 
@@ -81,7 +78,6 @@ bad_chans_t = table(struct('Probe1', cell(n_dates, 1), 'Probe2', cell(n_dates, 1
 
 % exclude bad channels noted in recording info, + others
 bad_chans = cell(n_dates, 1);
-common_bad_r_chan_dates = {'2021-01-27', '2021-01-29', '2021-01-31'};
 stim_event_chan_s = struct('Probe1', 2, 'Probe2', 1);
 
 for kD = 1:n_dates
@@ -95,9 +91,13 @@ for kD = 1:n_dates
     bad_chans{kD}.Probe2 = noise_chans(noise_chans > 64) - 64;
     
     % add other bad channels
-    if ismember(this_date, common_bad_r_chan_dates)
+    if ismember(this_date, {'2021-01-27', '2021-01-29', '2021-01-31'})
         bad_chans{kD}.Probe2 = union(bad_chans{kD}.Probe2, [39, 53]);
     end
+    
+%     if strcmp(this_date, '2021-01-25')
+%         bad_chans(kD).Probe1 = union(bad_chans(kD).Probe1, 39);
+%     end
     
     if strcmp(this_date, '2021-01-29')
         bad_chans{kD}.Probe2 = union(bad_chans{kD}.Probe2, 40);
@@ -106,24 +106,26 @@ for kD = 1:n_dates
     if strcmp(this_date, '2021-02-02')
         bad_chans{kD}.Probe1 = union(bad_chans{kD}.Probe1, 29);
     end
-    
+        
     plot_csd(rec_dates{kD}, probe_s, bad_chans{kD}, [], rec_mt_info, stim_event_chan_s);
 end
 
 %% Pick channels - L4 and steps of 140 um up and down
 
-depths_um = 140 * (-8:8);
+depths_um = 140 * (-4:8);
 layer_names = [
-    arrayfun(@(k) ['Sup', num2str(k)], 8:-1:1, 'uni', false), {'L4'}, ...
+    arrayfun(@(k) ['Sup', num2str(k)], 4:-1:1, 'uni', false), {'L4'}, ...
     arrayfun(@(k) ['Inf', num2str(k)], 1:8, 'uni', false)
     ];
 
 
-for kD = 1:length(rec_dates)
+for kD = 1% 1:length(rec_dates)
     %%
     rec_dir = fullfile(sr_dirs.results, rec_dates{kD});
-    for side = 'LR'
-        pick_csd_channels(rec_dir, depths_um, layer_names, ['V1', side], {}, true);
+    for kP = 1:2
+        probename = sprintf('Probe%d', kP);
+        pick_csd_channels(rec_dir, depths_um, layer_names, probe_s.(probename), ...
+            {}, true, bad_chans{kD}.(probename));
     end
 end
 
@@ -148,22 +150,28 @@ for kD = 1:length(rec_dates)
 end
 
 % add any additional artifacts here
-rec_mt_info.artifcats{'2021-01-27_11-00-00'} = [
-    rec_mt_info.artifacts{'2021-01-27_11-00-00'}
-    2248, 2250
-    2659, 2661
-    3733, 3735
-    4107, 4109
-    5258, 5259
-    ];
+% rec_mt_info.artifcats{'2021-01-27_11-00-00'} = [
+%     rec_mt_info.artifacts{'2021-01-27_11-00-00'}
+%     2248, 2250
+%     2659, 2661
+%     3733, 3735
+%     4107, 4109
+%     5258, 5259
+%     ];
 
-rec_mt_info.artifcats{'2021-01-27_12-32-00'} = [
+rec_mt_info.artifacts{'2021-01-27_12-32-00'} = [
     rec_mt_info.artifacts{'2021-01-27_12-32-00'}
     166,  167
     513,  515
     1327, 1328
-    1398, 1399
+    1398, 1402
+    2325, 2328
+    2349, 2350
+    2413, 2419
     3248, 3249
+    3751, 3754
+    3828, 3830
+    5327, 5334
     ];
 
 rec_mt_info.artifacts{'2021-01-31_09-52-00'} = [
@@ -178,7 +186,7 @@ rec_mt_info.artifacts{'2021-01-31_15-41-00'} = [
     ];
 
 %% Loop through recordings and do multitaper
-for kR = 1:n_recs
+for kR = 3:n_recs % 1:n_recs
     %% Do low-resolution analysis first
     rec_name = rec_names{kR};
     rec_date = rec_mt_info.date{rec_name};
@@ -194,12 +202,12 @@ for kR = 1:n_recs
  
     %%
 %     mt_res_lores = multitaper_analysis(data_mfile, options);
-    
-%     % (example code to inspect results - modify as necessary)
+%     
+%     %% (example code to inspect results - modify as necessary)
 %     plot_options = struct;
 %     plot_options.pxx_name = 'pxx';
 %     plot_options.take_log = true;
-%     plot_options.chans = 1:4;
+%     plot_options.chans = 9:12;
 %     
 %     plot_multitaper(mt_res_lores, plot_options);
 
@@ -214,16 +222,16 @@ for kR = 1:n_recs
     mt_res = multitaper_analysis(data_mfile, options);
 
     %% Version with CSDs
-    options.window = 6;
-    options.padbase = 60;
-    options.winstep = 0.1;
-    options.save = true;
-    options.filename = 'mt_res_layers.mat';
-    options.use_csd = true;
-    options.bad_chans = bad_chans_t.bad_chans(rec_date);
-    options.savedir = fullfile(sr_dirs.results, [rec_date, '_csd'], rec_time);
-
-    raw_mfile = matfile(fullfile(sr_dirs.raw, rec_date, 'matlab', [rec_name, '.mat']));
-
-    multitaper_analysis(raw_mfile, options);
+%     options.window = 6;
+%     options.padbase = 60;
+%     options.winstep = 0.1;
+%     options.save = true;
+%     options.filename = 'mt_res_layers.mat';
+%     options.use_csd = true;
+%     options.bad_chans = bad_chans_t.bad_chans(rec_date);
+%     options.savedir = fullfile(sr_dirs.results, [rec_date, '_csd'], rec_time);
+% 
+%     raw_mfile = matfile(fullfile(sr_dirs.raw, rec_date, 'matlab', [rec_name, '.mat']));
+% 
+%     multitaper_analysis(raw_mfile, options);
 end

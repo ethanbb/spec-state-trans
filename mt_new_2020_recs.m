@@ -42,9 +42,9 @@ end
 
 %% Pick channels - L4 and steps of 140 um up and down
 
-depths_um = 140 * (-8:8);
+depths_um = 140 * (-4:8);
 layer_names = [
-    arrayfun(@(k) ['Sup', num2str(k)], 8:-1:1, 'uni', false), {'L4'}, ...
+    arrayfun(@(k) ['Sup', num2str(k)], 4:-1:1, 'uni', false), {'L4'}, ...
     arrayfun(@(k) ['Inf', num2str(k)], 1:8, 'uni', false)
     ];
 
@@ -112,13 +112,13 @@ for kD = 1:n_dates
         end
     end
     
-    if strcmp(date, '2020-10-27')
-        % Skip V1 Inf4 due to artifacts
-        for rec_i = find(b_rec(:)')
-            rec_mt_info.chans(rec_i).Probe2(strcmp(csd_info_V1.chan_names, 'Inf4')) = [];
-            rec_mt_info.chan_names{rec_i}(strcmp(rec_mt_info.chan_names{rec_i}, 'V1_Inf4')) = [];
-        end
-    end
+%     if strcmp(date, '2020-10-27')
+%         % Skip V1 Inf4 due to artifacts
+%         for rec_i = find(b_rec(:)')
+%             rec_mt_info.chans(rec_i).Probe2(strcmp(csd_info_V1.chan_names, 'Inf4')) = [];
+%             rec_mt_info.chan_names{rec_i}(strcmp(rec_mt_info.chan_names{rec_i}, 'V1_Inf4')) = [];
+%         end
+%     end
     
     if strcmp(date, '2020-10-28')
         % Avoid V1 channel 33
@@ -132,15 +132,15 @@ end
 
 % '2020-10-27_13-04-00' - [135, 156] is "black swan", but it's surrounded by burst suppression
 
-rec_mt_info.artifacts{'2020-10-27_13-04-00'} = [
-    rec_mt_info.artifacts{'2020-10-27_13-04-00'}
-    2326, 2327 % for channel 97
-    ];
-
-rec_mt_info.artifacts{'2020-10-27_15-05-00'} = [
-    rec_mt_info.artifacts{'2020-10-27_15-05-00'}
-    544.5, 546 % for channel 40
-    ];
+% rec_mt_info.artifacts{'2020-10-27_13-04-00'} = [
+%     rec_mt_info.artifacts{'2020-10-27_13-04-00'}
+%     2326, 2327 % for channel 97
+%     ];
+% 
+% rec_mt_info.artifacts{'2020-10-27_15-05-00'} = [
+%     rec_mt_info.artifacts{'2020-10-27_15-05-00'}
+%     544.5, 546 % for channel 40
+%     ];
 
 rec_mt_info.artifacts{'2020-10-28_16-45-00'} = [
     rec_mt_info.artifacts{'2020-10-28_16-45-00'}
@@ -201,16 +201,16 @@ for kR = 1:n_recs
     mt_res = multitaper_analysis(data_mfile, options);
 
     %% Version with CSDs
-    options.window = 6;
-    options.padbase = 60;
-    options.winstep = 0.1;
-    options.save = true;
-    options.filename = 'mt_res_layers.mat';
-    options.use_csd = true;
-    options.bad_chans = bad_chans_t.bad_chans(rec_date);
-    options.savedir = fullfile(sr_dirs.results, [rec_date, '_csd'], rec_time);
-
-    raw_mfile = matfile(fullfile(sr_dirs.raw, rec_date, 'matlab', [rec_name, '.mat']));
-
-    multitaper_analysis(raw_mfile, options);
+%     options.window = 6;
+%     options.padbase = 60;
+%     options.winstep = 0.1;
+%     options.save = true;
+%     options.filename = 'mt_res_layers.mat';
+%     options.use_csd = true;
+%     options.bad_chans = bad_chans_t.bad_chans(rec_date);
+%     options.savedir = fullfile(sr_dirs.results, [rec_date, '_csd'], rec_time);
+% 
+%     raw_mfile = matfile(fullfile(sr_dirs.raw, rec_date, 'matlab', [rec_name, '.mat']));
+% 
+%     multitaper_analysis(raw_mfile, options);
 end
