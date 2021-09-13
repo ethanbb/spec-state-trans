@@ -675,7 +675,7 @@ analysis_ylabels = struct(...
 
 violin_colors = struct(...
     'SameVsCross', [1, 0, 0; 0, 0, 1], ...
-    'V1_NonL4VsL4', [0.86, 0.28, 0.11; 1, 0, 0.6]);    
+    'V1_NonL4VsL4', [219, 71, 28; 160, 32, 240] / 255); % 255, 0, 153]);    
 
 %% Make violin plots, showing shuffled p-values for regional and L4 contrasts
 
@@ -792,7 +792,7 @@ for kExpPair = 1:length(combined_L4_perm_test_res)
         fh.Position = [300, 300, 400, 500];
         set(gca, 'FontName', 'Arial');
         
-        title(analysis_titles.(aname));
+        title(sprintf('%s\n(combined)', analysis_titles.(aname)));
         ylabel(analysis_ylabels.(aname));
         
         % add p-value indicators
