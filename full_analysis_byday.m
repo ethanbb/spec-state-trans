@@ -103,7 +103,24 @@ all_cca = cell(length(exp_info), 1);
 all_cca_shuffle = cell(length(exp_info), 1);
 all_pair_sync_scores = cell(length(exp_info), 1);
 all_pair_sync_scores_shuffle = cell(length(exp_info), 1);
-shuffle_seeds = cell(length(exp_info), 1);
+
+% see whether we are shuffling anew or using previous seeds
+if ~exist('reuse_shuffle_seeds', 'var')
+    reuse_shuffle_seeds = false;
+end
+
+if reuse_shuffle_seeds && ~exist('shuffle_seeds', 'var')
+    warning('Flag to re-use shuffle seeds was set, but they are not in workspace');
+    reuse_shuffle_seeds = false;
+end
+
+if ~reuse_shuffle_seeds
+    shuffle_seeds = cell(length(exp_info), 1);
+end
+
+trans_sync_means_real = zeros(length(exp_info), 1);
+trans_sync_means_shuffle = zeros(length(exp_info), n_shuffle);
+trans_sync_pvals = zeros(length(exp_info), 1);
 
 for kE = 1:length(exp_info)
     this_info = exp_info(kE);
@@ -119,11 +136,20 @@ for kE = 1:length(exp_info)
     all_cca_shuffle{kE} = nan(n_chans, n_chans, this_ndays, n_shuffle);
     all_pair_sync_scores{kE} = nan(n_chans, n_chans, this_ndays);
     all_pair_sync_scores_shuffle{kE} = nan(n_chans, n_chans, this_ndays, n_shuffle);
-    shuffle_seeds{kE} = cell(this_ndays, 1);
+    
+    if ~reuse_shuffle_seeds
+        shuffle_seeds{kE} = cell(this_ndays, 1);
+    end
     
     % for collecting interpolated cumulated frequency of transition sync scores across days
     cum_trans_interp = zeros(1, length(cdf_interp_vals));
     cum_trans_interp_shuffle = zeros(n_shuffle, length(cdf_interp_vals));
+    
+    % for computing transition sync means over days/shuffled runs
+    total_trans_real = 0;
+    total_trans_shuffle = zeros(1, n_shuffle);
+    total_score_real = 0;
+    total_score_shuffle = zeros(1, n_shuffle);
     
     for kD = 1:this_ndays
         this_day = this_info.input_s(kD).name;
@@ -145,6 +171,10 @@ for kE = 1:length(exp_info)
         cum_vals = 0:1/(this_n_chans-1):1;
         cum_trans = histcounts(trans_table.sync_score, cum_edges, 'Normalization', 'cumcount');
         cum_trans_interp = cum_trans_interp + interp1(cum_vals, cum_trans, cdf_interp_vals);
+        
+        % for mean sync distribution
+        total_trans_real = total_trans_real + height(trans_table);
+        total_score_real = total_score_real + sum(trans_table.sync_score);
         
         % make individual transition plot
         fh = figure;
@@ -199,8 +229,13 @@ for kE = 1:length(exp_info)
             classes_shuffled = cell(this_n_chans, 1);
 
             for kC = 1:this_n_chans
+                if reuse_shuffle_seeds
+                    rng(shuffle_seeds{kE}{kD}{kS, kC});
+                end
+                
                 [V_shuffled{kC}, classes_shuffled{kC}, models{kC}, seeds{kS, kC}] = ...
-                    util.shuffle_scores_markov(nmf_V{1}{kC}, classes(:, kC), trans{1}{kC}, models{kC});
+                    util.shuffle_scores_markov(nmf_V{1}{kC}, classes(:, kC), trans{1}{kC}, ...
+                    models{kC}, ~reuse_shuffle_seeds);
             end
             
             % mean transition synchrony CDF
@@ -216,6 +251,10 @@ for kE = 1:length(exp_info)
             
             cum_trans = histcounts(shuffle_trans_table.sync_score, cum_edges, 'Normalization', 'cumcount');
             cum_trans_interp_shuffle(kS, :) = cum_trans_interp_shuffle(kS, :) + interp1(cum_vals, cum_trans, cdf_interp_vals);
+            
+            % for mean sync distribution
+            total_trans_shuffle(kS) = total_trans_shuffle(kS) + height(shuffle_trans_table);
+            total_score_shuffle(kS) = total_score_shuffle(kS) + sum(shuffle_trans_table.sync_score);
             
             % pair sync scores
             all_pair_sync_scores_shuffle{kE}(insert_inds, insert_inds, kD, kS) = ...
@@ -235,8 +274,10 @@ for kE = 1:length(exp_info)
                 end
             end
             all_cca_shuffle{kE}(insert_inds, insert_inds, kD, kS) = this_cca;
-        end        
-        shuffle_seeds{kE}{kD} = seeds;
+        end
+        if ~reuse_shuffle_seeds
+            shuffle_seeds{kE}{kD} = seeds;
+        end
     end
     
     % make transition sync CDF plot (comparison with shuffled)
@@ -263,6 +304,15 @@ for kE = 1:length(exp_info)
     savefig(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.fig']));
     saveas(fh, fullfile(sr_dirs.results, 'res_figs', [figname, '.svg']));
     
+    % mean sync score distribution
+    trans_sync_means_real(kE) = total_score_real / total_trans_real;
+    trans_sync_means_shuffle(kE, :) = total_score_shuffle ./ total_trans_shuffle;
+    
+    % pvalue based on normal fit (CLT)
+    mean_mean = mean(trans_sync_means_shuffle(kE, :));
+    std_mean = std(trans_sync_means_shuffle(kE, :));
+    trans_sync_pvals(kE) = normcdf(trans_sync_means_real(kE), mean_mean, std_mean, 'upper');    
+    
     % for matrices - find channels with no data
     nonempty_chan_combos = any(~isnan(mut_info_combined{kE}), 3);
     nonempty_cols = any(nonempty_chan_combos);
@@ -277,6 +327,9 @@ for kE = 1:length(exp_info)
     all_pair_sync_scores{kE} = all_pair_sync_scores{kE}(nonempty_chans, nonempty_chans, :);
     all_pair_sync_scores_shuffle{kE} = all_pair_sync_scores_shuffle{kE}(nonempty_chans, nonempty_chans, :, :);
 end
+
+save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'exp_types', 'n_shuffle', 'all_chan_names', ...
+    'shuffle_seeds', 'exp_info', 'trans_sync_means_real', 'trans_sync_means_shuffle', 'trans_sync_pvals', '-v7.3'); 
 
 %% Use bootstraps to compute z-scores
 
@@ -309,10 +362,8 @@ for kE = 1:length(exp_info)
     end
 end
 
-%%
-save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'exp_types', 'n_shuffle', 'all_chan_names', ...
-   'pairwise_stats', 'pairwise_stats_shuffle', 'shuffle_seeds', 'exp_info', 'analysis_names', '-v7.3');
-
+save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'pairwise_stats', 'pairwise_stats_shuffle', ...
+    'analysis_names', '-append');
 
 %% Do (actual) bootstrap for bilateral vs. M1/V1 cross-region contrast
 n_boot = 1e6;
