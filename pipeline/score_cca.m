@@ -99,16 +99,16 @@ for kF = 1:n_files
             
             for jC = 1:n_j
                 Vj = Vjs_set{jC};
-                [~, ~, ps] = canoncorr(Vi_real, Vj);
-                cca_sim(iC, jC) = mean(ps);
+                [~, ~, rhos] = canoncorr(Vi_real, Vj);
+                cca_sim(iC, jC) = mean(rhos);
                 
                 if do_null
                     if use_separate_runs
-                        [~, ~, ps] = canoncorr(Vi_null, Vj);
+                        [~, ~, rhos] = canoncorr(Vi_null, Vj);
                     else
-                        [~, ~, ps] = canoncorr(Vi_null, Vi_null_set{jC});
+                        [~, ~, rhos] = canoncorr(Vi_null, Vi_null_set{jC});
                     end
-                    cca_sim_null(iC, jC) = mean(ps);
+                    cca_sim_null(iC, jC) = mean(rhos);
                 end
             end
         end

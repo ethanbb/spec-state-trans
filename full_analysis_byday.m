@@ -269,8 +269,8 @@ for kE = 1:length(exp_info)
             this_cca = nan(this_n_chans);
             for iC = 1:this_n_chans
                 for jC = 1:iC-1
-                    [~, ~, ps] = canoncorr(V_shuffled{iC}, V_shuffled{jC});
-                    this_cca(iC, jC) = mean(ps);
+                    [~, ~, rhos] = canoncorr(V_shuffled{iC}, V_shuffled{jC});
+                    this_cca(iC, jC) = mean(rhos);
                 end
             end
             all_cca_shuffle{kE}(insert_inds, insert_inds, kD, kS) = this_cca;
@@ -366,6 +366,7 @@ save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'pairwise_stats', 'pairwise
     'analysis_names', '-append');
 
 %% Do (actual) bootstrap for bilateral vs. M1/V1 cross-region contrast
+
 n_boot = 1e6;
 boot_pvals_bilat_vs_m1v1 = struct;
 ref_types = {'meansub'}; %, 'csd'};
@@ -430,13 +431,106 @@ for kR = 1:length(ref_types)
         % collect bootstrap sample
         boot_diffs = diff(cross_means);
         
-        % since this distribution is centered at the actual statistic value, want to find prob.
+        % Since this distribution is centered at the actual statistic value, want to find prob.
         % that it is > 2 * this value.
+        % Basically, I have a distribution of the differences. Typically we
+        % would assume that under the null hypothesis, we see the same
+        % distribution, but centered at 0, and then test whether the actual
+        % difference has p-value < 0.05 based on that. Here I'm just
+        % skipping the centering step, and multiplying the "actual
+        % difference" by 2 to compensate.
+        % Would be sketchy if the distribution of differences weren't
+        % symmetric, but it seems to be pretty symmetric.
         boot_pvals_bilat_vs_m1v1.(rtype).(aname) = (sum(boot_diffs >= 2*actual_diff)+1)/(n_boot+1);
     end
 end
 
 save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'boot_pvals_bilat_vs_m1v1', '-append');
+
+%% Sub-sample cross-region matrices to fairly compare bilatral and M1/V1 cross-region
+% I initially thought this was more valid than the method above, but they
+% are actually both valid. So this is an alternative way of testing whether
+% cross-region synchrony is greater in M1/V1 vs. bilateral V1.
+
+n_perms = 1e6;
+subsample_bilat_vs_m1v1_stats = struct;
+ref_types = {'meansub'}; %, 'csd'};
+
+for kR = 1:length(ref_types)
+    rtype = ref_types{kR};
+    res_mats{1} = pairwise_stats(kR*2 - 1); % M1/V1
+    chan_names{1} = all_chan_names{kR*2 - 1};
+    res_mats{2} = pairwise_stats(kR*2); % bilateral
+    chan_names{2} = all_chan_names{kR*2};
+    
+    for kA = 1:length(analysis_names)
+        aname = analysis_names{kA};
+        
+        % things to collect for both M1/V1 and bilateral
+        ns = zeros(2, 1);
+        samp_vars = zeros(2, 1);
+        samp_means = zeros(2, 1);
+        
+        for kT = 1:2 % (type)
+            n_days = size(res_mats{kT}.(aname), 3);
+
+            cross_mats = cell(n_days, 1);
+            day_ns = zeros(n_days, 1);
+            for kD = 1:n_days
+                % trim matrix down to rows/cols present in this day
+                mat = res_mats{kT}.(aname)(:, :, kD);
+                empty_cols = all(isnan(mat));
+                empty_rows = all(isnan(mat'));
+                b_keep = ~empty_cols | ~empty_rows;
+                this_chans = chan_names{kT}(b_keep);
+                mat = mat(b_keep, b_keep);
+                
+                % find cross-region submatrix
+                if kT == 1
+                    chans1 = contains(this_chans, 'V1');
+                    chans2 = contains(this_chans, 'M1');
+                else
+                    chans1 = contains(this_chans, 'V1R');
+                    chans2 = contains(this_chans, 'V1L');
+                end
+                cross_mats{kD} = mat(chans1, chans2);
+                [m, n] = size(cross_mats{kD});
+                day_ns(kD) = min(m, n);
+            end
+            ns(kT) = sum(day_ns);
+            offsets = [0; cumsum(day_ns(1:end-1))];
+                
+            % select from matrices without replacement to estimate mean and variance
+            vals = zeros(ns(kT), 1);
+            for kP = 1:n_perms                
+                for kD = 1:n_days
+                    mat = cross_mats{kD};
+                    [m, n] = size(mat);
+                    perm1 = randsample(m, day_ns(kD));
+                    perm2 = randsample(n, day_ns(kD));
+                    inds = sub2ind([m, n], perm1, perm2);
+                    vals(offsets(kD) + (1:day_ns(kD))) = mat(inds);
+                end
+                samp_means(kT) = samp_means(kT) + mean(vals) / n_perms;
+                samp_vars(kT) = samp_vars(kT) + var(vals) / n_perms;
+            end
+        end
+        
+        % finally, do 2-sample t-test with pooled variance
+        mean_diff = samp_means(2) - samp_means(1); % bilateral - M1/V1
+        dfs = ns - 1;
+        pooled_var = (samp_vars' * dfs) / sum(dfs);
+        pooled_se_factor = sqrt(sum(1 ./ ns));
+        t = mean_diff / (sqrt(pooled_var) * pooled_se_factor);
+        p = tcdf(t, sum(dfs), 'upper');
+        
+        subsample_bilat_vs_m1v1_stats.(rtype).(aname).p = p;
+        subsample_bilat_vs_m1v1_stats.(rtype).(aname).t = t;
+        subsample_bilat_vs_m1v1_stats.(rtype).(aname).df = sum(dfs);
+    end
+end
+
+save(fullfile(sr_dirs.results, 'analysis_info.mat'), 'subsample_bilat_vs_m1v1_stats', '-append');
 
 %% Get channel permutation test distributions and p-values for contrasts
 n_perm = 1e7;
