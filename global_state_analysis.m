@@ -44,9 +44,7 @@ for kE = 1:length(exp_types)
         'nmf_res_out', cell(this_ndays, 1), ...
         'xval_fig_dir', cell(this_ndays, 1));
 
-    for kD = 1:this_ndays
-        % Build input to concat_and_nmf
-
+    for kD = 1:this_ndays       
         curr_day = this_days{kD};
         exp_info(kE).input_s(kD).nmf_res_out = fullfile(sr_dirs.results, curr_day, 'nmf_res.mat');
         exp_info(kE).input_s(kD).xval_fig_dir = fullfile(sr_dirs.results, curr_day);
@@ -71,6 +69,10 @@ for kE = 1:length(exp_types)
     this_n_days = length(input_s);
     
     for kD = 1:this_n_days
+        if kE == 1 && kD == 1
+            continue;
+        end
+        
         this_day_info = input_s(kD);
         nmf_mfile = matfile(this_day_info.nmf_res_out);
         
@@ -88,20 +90,18 @@ for kE = 1:length(exp_types)
         n_shuffle = 1000;
         classes = nmf_mfile.nmf_classes;
         classes = classes{1};
-        classes = cell2mat(classes');
         trans = nmf_mfile.nmf_transitions;
         trans = trans{1};
         frac_explained_shuffled = zeros(n_shuffle, length(frac_explained));
 
+        scores_shuffled = cell(n_chans, 1);
+        models = cell(n_chans, 1);
         for kS = 1:n_shuffle
-            scores_shuffled = cell(n_chans, 1);
-            models = cell(n_chans, 1);
-            
             for kC = 1:n_chans
                 rng(info_s.shuffle_seeds{kE}{kD}{kS, kC});
                 
                 [scores_shuffled{kC}, ~, models{kC}] = util.shuffle_scores_markov( ...
-                    scores{kC}, classes(:, kC), trans{kC}, ...
+                    scores{kC}, classes{kC}, trans{kC}, ...
                     models{kC}, false);
             end
             full_dynamics_shuffled = cell2mat(scores_shuffled');        
@@ -116,9 +116,9 @@ for kE = 1:length(exp_types)
         % Plot median and 95% CI of shuffled frac_explained
         frac_explained_shuffled_quantiles = quantile(frac_explained_shuffled, [0.025, 0.5, 0.975]);
         xconf = [1:n_vals_to_plot, n_vals_to_plot:-1:1];
-        yconf = [frac_explained_shuffled_quantiles(3, 1:n_vals_to_plot), ...
-            frac_explained_shuffled_quantiles(1, n_vals_to_plot:-1:1)];
-        plot(frac_explained_shuffled_quantiles(2, 1:n_vals_to_plot), 'r-s');
+        yconf = [frac_explained_shuffled_quantiles(3, 1:n_vals_to_plot) * 100, ...
+            frac_explained_shuffled_quantiles(1, n_vals_to_plot:-1:1) * 100];
+        plot(frac_explained_shuffled_quantiles(2, 1:n_vals_to_plot) * 100, 'r-s');
         fill(xconf, yconf, 'red', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
         
         xlabel('Number of PCs');
