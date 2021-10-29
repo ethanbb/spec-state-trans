@@ -35,7 +35,6 @@ for kF = 1:n_files
     %% Get dataset info
     
     res_mfile = nmf_res_mfiles{kF};
-    run_name = res_mfile.run_name;    
     chan_names = res_mfile.chan_names;
     Vs = res_mfile.nmf_V;
     Vis = Vs{1};
@@ -81,8 +80,10 @@ for kF = 1:n_files
         set_chan_names = chan_names(set_chans);
         
         cca_sim = nan(n_chans, n_chans);
+        cca_redun = nan(n_chans, n_chans);
         if do_null
             cca_sim_null = zeros(n_chans, n_chans);
+            cca_redun_null = zeros(n_chans, n_chans);
         end
         
         for iC = 1:n_chans
@@ -99,24 +100,44 @@ for kF = 1:n_files
             
             for jC = 1:n_j
                 Vj = Vjs_set{jC};
-                [~, ~, rhos] = canoncorr(Vi_real, Vj);
-                cca_sim(iC, jC) = mean(rhos);
+                [meanrho, reduni, redunj] = util.calc_cca_stats(Vi_real, Vj);
+                cca_sim(iC, jC) = meanrho;
+                
+                if ~use_separate_runs % can't fit asymmetric redundancy index if using separate runs
+                    % each column reports how much of the variance in the corresponding channel is
+                    % explained by canonical correlation with the channels in each row.
+                    cca_redun(iC, jC) = redunj; % how much channel j is explained by channel i
+                    cca_redun(jC, iC) = reduni;
+                end
                 
                 if do_null
                     if use_separate_runs
-                        [~, ~, rhos] = canoncorr(Vi_null, Vj);
+                        Vj_null = Vj;
                     else
-                        [~, ~, rhos] = canoncorr(Vi_null, Vi_null_set{jC});
+                        Vj_null = Vi_null_set{jC};
                     end
-                    cca_sim_null(iC, jC) = mean(rhos);
+                    [meanrho, reduni, redunj] = util.calc_cca_stats(Vi_null, Vj_null);
+                    cca_sim_null(iC, jC) = meanrho;
+                    
+                    if ~use_separate_runs
+                        cca_redun_null(iC, jC) = redunj;
+                        cca_redun_null(jC, iC) = reduni;
+                    end
                 end
             end
         end
         
         %% Save
         res_mfile.([set_name, '_cca_sim']) = cca_sim;
+        if ~use_separate_runs
+            res_mfile.([set_name, '_cca_redun']) = cca_redun;
+        end
+        
         if do_null
             res_mfile.([set_name, '_cca_sim_null']) = cca_sim_null;
+            if ~use_separate_runs
+                res_mfile.([set_name, '_cca_redun_null']) = cca_redun_null;
+            end
         end
         res_mfile.([set_name, '_chans']) = set_chan_names;
 

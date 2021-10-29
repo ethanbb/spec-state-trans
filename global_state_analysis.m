@@ -79,53 +79,43 @@ for kE = 1:length(exp_types)
         n_chans = length(scores);
         comps_per_chan = cellfun('size', scores, 2); % for mat2cell later
         full_dynamics = cell2mat(scores');
+        fprintf('%s total NMF comps: %d\n', this_day_info.name, size(full_dynamics, 2));
         
         [pcs, pc_scores, eigvals] = pca(full_dynamics);
-        frac_explained = cumsum(eigvals / sum(eigvals));
-        n_vals_to_plot = max(8, min(sum(frac_explained < 0.95) + 1, length(frac_explained)));
         
-        % Markov shuffle to compare to control
-        n_shuffle = 1000;
-        classes = nmf_mfile.nmf_classes;
-        classes = classes{1};
-        classes = cell2mat(classes');
-        trans = nmf_mfile.nmf_transitions;
-        trans = trans{1};
-        frac_explained_shuffled = zeros(n_shuffle, length(frac_explained));
-
-        for kS = 1:n_shuffle
-            scores_shuffled = cell(n_chans, 1);
-            models = cell(n_chans, 1);
-            
-            for kC = 1:n_chans
-                rng(info_s.shuffle_seeds{kE}{kD}{kS, kC});
-                
-                [scores_shuffled{kC}, ~, models{kC}] = util.shuffle_scores_markov( ...
-                    scores{kC}, classes(:, kC), trans{kC}, ...
-                    models{kC}, false);
-            end
-            full_dynamics_shuffled = cell2mat(scores_shuffled');        
-            [~, ~, eigvals_shuffled] = pca(full_dynamics_shuffled);
-            frac_explained_shuffled(kS, :) = cumsum(eigvals_shuffled / sum(eigvals_shuffled));            
-        end
+        % 2D histogram of data on 1st 2 PC axes
+        fh = figure('Position', [200, 200, 530, 440]);
+        ax_2d = subplot(4, 4, [2, 3, 4, 6, 7, 8, 10, 11, 12]);        
+        [counts, xedges, yedges] = histcounts2(pc_scores(:, 1), pc_scores(:, 2), [100, 100]);
+        xcenters = mean([xedges(1:end-1); xedges(2:end)]);
+        ycenters = mean([yedges(1:end-1); yedges(2:end)]);
+        sanePColor(xcenters, ycenters, imgaussfilt(counts', 3));
+        pc1_lims = ax_2d.XLim;
+        pc2_lims = ax_2d.YLim;
         
-        fh = figure;
-        plot(frac_explained(1:n_vals_to_plot) * 100, 'b-s');
-        hold on;
+        % Marginal ksdensity plots
+        ax_marginy = subplot(4, 4, [1, 5, 9]);
+        ax_marginx = subplot(4, 4, [14, 15, 16]);
         
-        % Plot median and 95% CI of shuffled frac_explained
-        frac_explained_shuffled_quantiles = quantile(frac_explained_shuffled, [0.025, 0.5, 0.975]);
-        xconf = [1:n_vals_to_plot, n_vals_to_plot:-1:1];
-        yconf = [frac_explained_shuffled_quantiles(3, 1:n_vals_to_plot), ...
-            frac_explained_shuffled_quantiles(1, n_vals_to_plot:-1:1)];
-        plot(frac_explained_shuffled_quantiles(2, 1:n_vals_to_plot), 'r-s');
-        fill(xconf, yconf, 'red', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+        [pc1_marg, xi] = ksdensity(pc_scores(:, 1));
+        plot(ax_marginx, xi, pc1_marg, 'k');
+        xlim(ax_marginx, pc1_lims);
+        xlabel(ax_marginx, 'Prob. density');
         
-        xlabel('Number of PCs');
-        ylabel('Cumulative % variance');
-        title(this_day_info.name, 'Interpreter', 'none');
-        legend('Real', 'Shuffled', '95% CI', 'Location', 'northwest');
-        savefig(fh, fullfile(sr_dirs.results, this_day_info.name, 'global_pca_explained.fig'));
+        [pc2_marg, xi] = ksdensity(pc_scores(:, 2));
+        plot(ax_marginy, pc2_marg, xi, 'k');
+        ylim(ax_marginy, pc2_lims);
+        ylabel(ax_marginy, 'Prob. density');
+        
+        ax_marginy.XDir = 'reverse';
+        ax_marginx.YDir = 'reverse';
+        ax_marginy.YAxis.Visible = false;
+        ax_marginx.XAxis.Visible = false;
+        ax_2d.FontName = 'Arial';
+        ax_marginy.FontName = 'Arial';
+        ax_marginx.FontName = 'Arial';
+        
+        savefig(fh, fullfile(sr_dirs.results, this_day_info.name, 'pc_space_data.fig'));
         
         % Plot PCA loadings in channel/frequency space
         loadings = nmf_mfile.nmf_U;
@@ -184,5 +174,53 @@ for kE = 1:length(exp_types)
         end
         title(tl, ['PCA loadings - ', this_day_info.name], 'Interpreter', 'none');
         savefig(fh, fullfile(sr_dirs.results, this_day_info.name, 'global_pca_loadings.fig'));
+        
+        % Variance explained - real and shuffled control
+        
+        frac_explained = cumsum(eigvals / sum(eigvals));
+        n_vals_to_plot = max(8, min(sum(frac_explained < 0.95) + 1, length(frac_explained)));
+        
+        % Markov shuffle to compare to control
+        n_shuffle = 1000;
+        classes = nmf_mfile.nmf_classes;
+        classes = classes{1};
+        classes = cell2mat(classes');
+        trans = nmf_mfile.nmf_transitions;
+        trans = trans{1};
+        frac_explained_shuffled = zeros(n_shuffle, length(frac_explained));
+
+        for kS = 1:n_shuffle
+            scores_shuffled = cell(n_chans, 1);
+            models = cell(n_chans, 1);
+            
+            for kC = 1:n_chans
+                rng(info_s.shuffle_seeds{kE}{kD}{kS, kC});
+                
+                [scores_shuffled{kC}, ~, models{kC}] = util.shuffle_scores_markov( ...
+                    scores{kC}, classes(:, kC), trans{kC}, ...
+                    models{kC}, false);
+            end
+            full_dynamics_shuffled = cell2mat(scores_shuffled');        
+            [~, ~, eigvals_shuffled] = pca(full_dynamics_shuffled);
+            frac_explained_shuffled(kS, :) = cumsum(eigvals_shuffled / sum(eigvals_shuffled));            
+        end
+        
+        fh = figure;
+        plot(frac_explained(1:n_vals_to_plot) * 100, 'b-s');
+        hold on;
+        
+        % Plot median and 95% CI of shuffled frac_explained
+        frac_explained_shuffled_quantiles = quantile(frac_explained_shuffled, [0.025, 0.5, 0.975]);
+        xconf = [1:n_vals_to_plot, n_vals_to_plot:-1:1];
+        yconf = [frac_explained_shuffled_quantiles(3, 1:n_vals_to_plot), ...
+            frac_explained_shuffled_quantiles(1, n_vals_to_plot:-1:1)];
+        plot(frac_explained_shuffled_quantiles(2, 1:n_vals_to_plot), 'r-s');
+        fill(xconf, yconf, 'red', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+        
+        xlabel('Number of PCs');
+        ylabel('Cumulative % variance');
+        title(this_day_info.name, 'Interpreter', 'none');
+        legend('Real', 'Shuffled', '95% CI', 'Location', 'northwest');
+        savefig(fh, fullfile(sr_dirs.results, this_day_info.name, 'global_pca_explained.fig'));
     end
 end

@@ -86,7 +86,15 @@ end
 input_s_all = vertcat(exp_info.input_s);
 
 %% Do NMF
-nmf_mfiles = concat_and_nmf(input_s_all);
+
+if ~exist('force_nmf', 'var')
+    force_nmf = false;
+end
+need_nmf = arrayfun(@(s) ~exist(s.nmf_res_out, 'file'), input_s_all) | force_nmf;
+
+nmf_mfiles = cell(length(input_s_all), 1);
+nmf_mfiles(~need_nmf) = arrayfun(@(s) matfile(s.nmf_res_out, 'Writable', true), input_s_all(~need_nmf), 'uni', false);
+nmf_mfiles(need_nmf) = concat_and_nmf(input_s_all(need_nmf));
 
 %% Get canonical correlation between score matrices 
 score_cca(nmf_mfiles);
@@ -100,7 +108,9 @@ all_chan_names = cell(length(exp_info), 1);
 mut_info_combined = cell(length(exp_info), 1);
 mut_info_shuffle = cell(length(exp_info), 1);
 all_cca = cell(length(exp_info), 1);
+all_cca_redun = cell(length(exp_info), 1);
 all_cca_shuffle = cell(length(exp_info), 1);
+all_cca_redun_shuffle = cell(length(exp_info), 1);
 all_pair_sync_scores = cell(length(exp_info), 1);
 all_pair_sync_scores_shuffle = cell(length(exp_info), 1);
 
@@ -133,7 +143,9 @@ for kE = 1:length(exp_info)
     mut_info_combined{kE} = nan(n_chans, n_chans, this_ndays);
     mut_info_shuffle{kE} = nan(n_chans, n_chans, this_ndays, n_shuffle);
     all_cca{kE} = nan(n_chans, n_chans, this_ndays);
+    all_cca_redun{kE} = nan(n_chans, n_chans, this_ndays);
     all_cca_shuffle{kE} = nan(n_chans, n_chans, this_ndays, n_shuffle);
+    all_cca_redun_shuffle{kE} = nan(n_chans, n_chans, this_ndays, n_shuffle);
     all_pair_sync_scores{kE} = nan(n_chans, n_chans, this_ndays);
     all_pair_sync_scores_shuffle{kE} = nan(n_chans, n_chans, this_ndays, n_shuffle);
     
@@ -212,10 +224,16 @@ for kE = 1:length(exp_info)
         fh = plot_dist_mat(cca_mat_sym, this_hr_chan_names, [], 'cca', 'full_nodiag', this_chans);
         savefig(fh, fullfile(sr_dirs.results, this_day, sprintf('cca_%s_all.fig', this_day)));
         
+        % plot CCA redundancy index
+        cca_redun_mat = this_mfile.all_cca_redun;
+        fh = plot_dist_mat(cca_redun_mat, this_hr_chan_names, [], 'cca_redun', 'full_nodiag', this_chans);
+        savefig(fh, fullfile(sr_dirs.results, this_day, sprintf('cca_redun_%s_all.fig', this_day)));
+        
         % save data to 3D array
         insert_inds = cellfun(@(c) find(strcmp(all_chan_names{kE}, c)), this_chans);
         mut_info_combined{kE}(insert_inds, insert_inds, kD) = norm_mut_info;
         all_cca{kE}(insert_inds, insert_inds, kD) = cca_mat;
+        all_cca_redun{kE}(insert_inds, insert_inds, kD) = cca_redun_mat;
         all_pair_sync_scores{kE}(insert_inds, insert_inds, kD) = pair_sync_scores;
         
         % also do bootstraps
@@ -267,13 +285,17 @@ for kE = 1:length(exp_info)
             
             % canonical correlation
             this_cca = nan(this_n_chans);
+            this_cca_redun = nan(this_n_chans);
             for iC = 1:this_n_chans
                 for jC = 1:iC-1
-                    [~, ~, rhos] = canoncorr(V_shuffled{iC}, V_shuffled{jC});
-                    this_cca(iC, jC) = mean(rhos);
+                    [meanrho, reduni, redunj] = util.calc_cca_stats(V_shuffled{iC}, V_shuffled{jC});
+                    this_cca(iC, jC) = meanrho;
+                    this_cca_redun(iC, jC) = redunj;
+                    this_cca_redun(jC, iC) = reduni;
                 end
             end
             all_cca_shuffle{kE}(insert_inds, insert_inds, kD, kS) = this_cca;
+            all_cca_redun_shuffle{kE}(insert_inds, insert_inds, kD, kS) = this_cca_redun;
         end
         if ~reuse_shuffle_seeds
             shuffle_seeds{kE}{kD} = seeds;
@@ -324,6 +346,7 @@ for kE = 1:length(exp_info)
     mut_info_shuffle{kE} = mut_info_shuffle{kE}(nonempty_chans, nonempty_chans, :, :);
     all_cca{kE} = all_cca{kE}(nonempty_chans, nonempty_chans, :);
     all_cca_shuffle{kE} = all_cca_shuffle{kE}(nonempty_chans, nonempty_chans, :, :);
+    all_cca_redun_shuffle{kE} = all_cca_redun_shuffle{kE}(nonempty_chans, nonempty_chans, :, :);
     all_pair_sync_scores{kE} = all_pair_sync_scores{kE}(nonempty_chans, nonempty_chans, :);
     all_pair_sync_scores_shuffle{kE} = all_pair_sync_scores_shuffle{kE}(nonempty_chans, nonempty_chans, :, :);
 end

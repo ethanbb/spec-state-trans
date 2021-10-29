@@ -105,6 +105,9 @@ switch dist_type
     case 'cca_z'
         title_line1 = 'Canonical correlation of NMF scores - z-score against null model';
         interpreter = 'none';
+    case 'cca_redun'
+        title_line1 = 'CCA global redundancy - columns explained by rows';
+        interpreter = 'none';
     otherwise
         error('Unrecognized matrix type');
 end
