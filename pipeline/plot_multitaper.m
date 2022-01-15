@@ -17,9 +17,11 @@ end
 opts = struct(...
     'pxx_name',  'pxx_pp',               ... fieldname (within result) of data to plot, or cell to plot multiple
     'take_log',  false,                  ... logical array same size as pxx_name of whether to take log first
+    'xlim',      [],                     ... time limits in seconds (or N x 2 matrix of limits for each input result)
     'clim',      [],                     ... color limits (default = automatic)
     'label',     [],                     ... label for each field (entry of pxx_name)
     'chans',     'all',                  ... which channels, of those analyzed, to plot
+    'chan_names',[],                     ... alternative to chans, specify as a cell.
     'save',      false,                  ... whether to save the figure
     'savedir',   default_savedir,        ... directory, if saving
     'filename',  'multitaper.fig',       ... filename, if saving
@@ -38,8 +40,18 @@ end
 
 % input validation
 n_inputs = length(result);
+if isempty(opts.xlim)
+    opts.xlim = repmat([0, inf], n_inputs, 1);
+elseif isvector(opts.xlim)
+    assert(length(opts.xlim) == 2, 'xlim must have 2 columns');
+    opts.xlim = repmat(opts.xlim(:)', n_inputs, 1);
+else
+    assert(size(opts.xlim, 2) == 2, 'xlim must have 2 columns');
+    assert(size(opts.xlim, 1) == n_inputs, 'if a matrix, xlim must have one row for each input');
+end
+
 for kR = 1:n_inputs
-    opts = validate_res_and_opts(result{kR}, opts);
+    opts = validate_res_and_opts(kR, result{kR}, opts);
 end
 n_chans = length(opts.chans);
 n_fields = length(opts.pxx_name);
@@ -52,27 +64,27 @@ pxx = repmat({cell(1, n_inputs)}, n_chans, n_fields);
 time_s = 0;
 for kI = 1:n_inputs
     this_res = result{kI};
+    time_grid = this_res.time_grid;
+    if ~exist('dt', 'var')
+        dt = mode(diff(time_grid));
+    else
+        assert(mode(diff(time_grid)) - dt < 1e-10, 'Inputs have different sample rates');
+    end
+    
+    keep_times = time_grid >= opts.xlim(kI, 1) & time_grid <= opts.xlim(kI, 2);
+    
     for kF = 1:n_fields
         this_field = this_res.(opts.pxx_name{kF});
-        time_grid = this_res.time_grid;
-        if ~exist('dt', 'var')
-            dt = mode(diff(time_grid));
-        else
-            assert(mode(diff(time_grid)) - dt < 1e-10, 'Inputs have different sample rates');
-        end
-
         for kC = 1:n_chans
             chan_data = this_field{opts.chans(kC)};
             if kF == 1 && kC == 1
                 if opts.remove_nans
-                    this_chan_keep = ~all(isnan(chan_data));
-                else
-                    this_chan_keep = true(1, size(chan_data, 2));
+                    keep_times = keep_times & ~all(isnan(chan_data));
                 end
-                time_s = time_s + sum(this_chan_keep) * dt;
+                time_s = time_s + sum(keep_times) * dt;
             end
             
-            pxx{kC, kF}{kI} = chan_data(:, this_chan_keep);
+            pxx{kC, kF}{kI} = chan_data(:, keep_times);
         end
     end
 end
@@ -142,7 +154,7 @@ end
 
 end
 
-function opts = validate_res_and_opts(result, opts)
+function opts = validate_res_and_opts(kR, result, opts)
 % Here, result is either a struct or a MatFile object.
 
 all_chan_names = result.name;
@@ -150,23 +162,43 @@ n_chans_in = length(all_chan_names);
 assert(n_chans_in >= 1, 'No channels in input data');
 
 % process options
-if ischar(opts.chans)
-    assert(strcmpi(opts.chans, 'all'), 'Unrecognized ''chans'' input');
-    opts.b_chans_all = true;
-    opts.chans = 1:n_chans_in;
-elseif isfield(opts, 'b_chans_all') && opts.b_chans_all
-    assert(all(opts.chans == 1:n_chans_in), 'Inputs have different #s of channels');
-else
-    assert(max(opts.chans) <= n_chans_in, 'Channels beyond number available requested');
+if kR == 1
+    opts.chan_names_given = ~isempty(opts.chan_names);
+    opts.b_chans_all = ischar(opts.chans);
+    if opts.b_chans_all
+        assert(strcmpi(opts.chans, 'all'), 'Unrecognized ''chans'' input');
+    else
+        opts.chans = opts.chans(:).';
+    end
 end
-opts.chans = opts.chans(:).';
 
-chan_names = all_chan_names(opts.chans);
-if ~isfield(opts, 'chan_names')
-    opts.chan_names = chan_names;
+if kR == 1 && ~opts.chan_names_given
+    % Derive channel names from opts.chans
+    if opts.b_chans_all
+        % Case: both default
+        opts.chans = 1:n_chans_in;
+    end
+    % Includes case: chan_names default, chans specified
+    opts.chan_names = all_chan_names(opts.chans);
 else
-    assert(length(opts.chan_names) == length(chan_names) && all(strcmp(opts.chan_names, chan_names)), ...
-        'Channel names don''t match between inputs');
+    % Find channels based on opts.chan_names
+    thisinput_chans = cellfun(@(cn) find(strcmp(cn, all_chan_names)), opts.chan_names(:).', 'uni', false);
+    not_found_chans = cellfun('isempty', thisinput_chans);
+    if any(not_found_chans)
+        not_found_str = sprintf(strjoin(opts.chan_names(not_found_chans), '\n\t'));
+        error(sprintf('These channels not found in input %%d: \n\t%%s'), kR, not_found_str);
+    end        
+    thisinput_chans = cell2mat(thisinput_chans);
+    
+    if kR == 1 && opts.chan_names_given && opts.b_chans_all
+       % Case: chans default, chan_names specified
+       opts.chans = thisinput_chans;
+    else
+        % verify that they match
+        % This covers the case where both chans and chan_names are non-default and all kR > 1.
+        assert(length(opts.chans) == length(thisinput_chans) && all(opts.chans == thisinput_chans), ...
+            'Channel name mismatch between inputs!');
+    end
 end
 
 freq_grid = result.freq_grid;
@@ -176,6 +208,11 @@ else
     assert(length(opts.freq_grid) == length(freq_grid) && all(opts.freq_grid == freq_grid), ...
         'Frequencies don''t match between inputs');
 end
+
+% validate xlim
+this_xlim = opts.xlim(kR, :);
+assert(any(result.time_grid >= this_xlim(1) & result.time_grid <= this_xlim(2)), ...
+    'No windows are within the provided xlim (for input %d)', kR);
 
 % validate pxx_name
 if ischar(opts.pxx_name)
