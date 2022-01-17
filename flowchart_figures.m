@@ -142,7 +142,7 @@ box off;
 
 %% Discrete state plot
 
-classes = nmf_mfile.nmf_classes;
+classes = nmf_mfile.filtered_classes;
 classes = classes{1};
 classes = cellfun(@(cls) cls(b_time), classes, 'uni', false);
 
