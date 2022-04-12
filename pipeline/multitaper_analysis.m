@@ -81,7 +81,7 @@ try
     res.chan_locs = get_channel_locs(data_s, opts.chans);
 catch me
     if strcmp(me.identifier, 'ProektLab:unknownProbe')
-        warning('Unknown probe type; channel locations not saved');
+        warning('ProektLab:unknownProbeWarn', 'Unknown probe type; channel locations not saved');
     else
         rethrow(me);
     end

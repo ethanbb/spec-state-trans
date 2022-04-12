@@ -31,7 +31,10 @@ mt_opts.padbase = 60;
 mt_opts.winstep = 0.1;
 mt_opts.save = false;
 
+s = warning;
+warning('off', 'ProektLab:unknownProbeWarn');
 mt_res = multitaper_analysis(data_s, mt_opts);
+warning(s);
 
 % preprocessing steps
 pp_opts = struct;
