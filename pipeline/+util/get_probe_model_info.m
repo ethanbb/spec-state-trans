@@ -17,6 +17,6 @@ elseif startsWith(model_name, {'E64-500-20-60', 'E64-500-20-70'})
     num_chans = 64;
     spacing = 500;
 else
-    error('Name %s does not match a known probe model', model_name);
+    error('ProektLab:unknownProbe', 'Name %s does not match a known probe model', model_name);
 end
 

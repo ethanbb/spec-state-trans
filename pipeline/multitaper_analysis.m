@@ -77,7 +77,15 @@ else
 end
 
 % also get channel locations now while we're at it
-res.chan_locs = get_channel_locs(data_s, opts.chans);
+try
+    res.chan_locs = get_channel_locs(data_s, opts.chans);
+catch me
+    if strcmp(me.identifier, 'ProektLab:unknownProbe')
+        warning('Unknown probe type; channel locations not saved');
+    else
+        rethrow(me);
+    end
+end
 
 [n_chans, len] = size(lfp_organized);
 Fs = data_s.finalSampR;
