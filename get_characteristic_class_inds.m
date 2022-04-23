@@ -1,17 +1,9 @@
 sr_dirs = prepSR;
 
-run_dates = {
-    '2020-10-26'
-    '2020-10-28'
-    '2020-10-29'
-    '2021-01-27'
-    '2021-01-29'
-    '2021-01-31'
-    '2021-02-02'
-    };
-
-m1v1_dates = run_dates(1:3);
-bilatv1_dates = run_dates(4:7);
+[exp_info, info_s_all] = gather_exp_info;
+run_dates = {input_s_all.name}';
+m1v1_dates = input_s_all(1).days;
+bilatv1_dates = input_s_all(2).days;
 
 nmf_res_files = fullfile(run_dates, 'nmf_res.mat');
 

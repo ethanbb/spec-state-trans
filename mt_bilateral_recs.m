@@ -186,7 +186,7 @@ rec_mt_info.artifacts{'2021-01-31_15-41-00'} = [
     ];
 
 %% Loop through recordings and do multitaper
-for kR = 3:n_recs % 1:n_recs
+for kR = 1:n_recs
     %% Do low-resolution analysis first
     rec_name = rec_names{kR};
     rec_date = rec_mt_info.date{rec_name};
