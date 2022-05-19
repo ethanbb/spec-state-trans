@@ -44,25 +44,13 @@ for kP = 1:length(filter_params)
     end
 end
 
-% load seg windows
-seg_lengths = cell(1, length(mt_res_files));
-for kR = 1:length(mt_res_files)
-    mt_res = mt_res_files{kR};
-    if ischar(mt_res)
-        mt_res = matfile(mt_res);
-    end
-    seg_lengths{kR} = cellfun('length', mt_res.seg_windows);
-end
-seg_lengths = cell2mat(seg_lengths);
-n_segs = length(seg_lengths);
-
 % get radius in samples
-mt_opts = mt_res.options;
+mt_res1 = mt_res_files{1};
+if ischar(mt_res1)
+    mt_res1 = matfile(mt_res1);
+end    
+mt_opts = mt_res1.options;
 radius_samps = opts.dist_radius / mt_opts.winstep;
-
-% get where each good segment starts and ends in post-multitaper samples
-seg_ends = cumsum(seg_lengths);
-seg_starts = [1, seg_ends(1:end-1) + 1];
 
 % load classes and scores to identify transitions (just use 1st repetition)
 if ischar(nmf_res_file)
@@ -78,13 +66,11 @@ scores = nmf_res_file.nmf_V;
 scores = scores{opts.nmf_run_ind};
 
 time_axis = nmf_res_file.time_axis;
-time_axis = time_axis(:);
 
 % divide things into "good data" segments
-segmentize = @(var) arrayfun(@(ss, se) var(ss:se, :), seg_starts, seg_ends, 'uni', false);
-time_segs = segmentize(time_axis);
-class_segs = cellfun(segmentize, classes, 'uni', false);
-score_segs = cellfun(segmentize, scores, 'uni', false);
+[seg_starts, seg_ends, time_segs, class_segs, score_segs] = ...
+    util.segmentize(mt_res_files, time_axis, classes, scores);
+n_segs = length(seg_starts);
 
 chan_names = nmf_res_file.chan_names;
 n_chans = length(chan_names);
@@ -154,16 +140,20 @@ if opts.save_filtered_classes
     filt_trans = cell(n_chans, 1);
     
     for kC = 1:n_chans
+        n_cls = size(scores{kC}, 2);
+        filt_trans{kC} = zeros(n_cls);
+        
         filt_cls_concat{kC} = zeros(seg_ends(end), 1);
         for kS = 1:n_segs
             filt_cls_concat{kC}(seg_starts(kS):seg_ends(kS)) = ...
                 filtered_class_segs{kC}{kS};
+            
+            % also make transition matrix, this is used for markov model bootstraps
+            seg_trans = accumarray(...
+                [filtered_class_segs{kC}{kS}(1:end-1), filtered_class_segs{kC}{kS}(2:end)], ...
+                1, [n_cls, n_cls]);
+            filt_trans{kC} = filt_trans{kC} + seg_trans;
         end
-        
-        % also make transition matrix, this is used for markov model bootstraps
-        n_cls = max(filt_cls_concat{kC});
-        filt_trans{kC} = accumarray([filt_cls_concat{kC}(1:end-1), filt_cls_concat{kC}(2:end)], ...
-            1, [n_cls, n_cls]);
     end
     
     % if nmf file already has a filtered_classes field, modify that

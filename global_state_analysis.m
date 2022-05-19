@@ -131,7 +131,7 @@ for kE = 1:length(exp_types)
         this_chans = nmf_mfile.all_chans;
         this_hr_chan_names = util.make_hr_chan_names(this_chans, mt_mfile.chan_locs);
         
-        % infer region labels (I know this is dumb)
+        % infer region labels (I know it's silly that this is necessary)
         reg = split(this_chans, '_');
         reg = reg(:, 1);
         all_regs = unique(reg);

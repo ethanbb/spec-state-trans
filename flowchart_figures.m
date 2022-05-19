@@ -31,25 +31,58 @@ xaxis = linspace(0, sample_timerange(2) - sample_timerange(1), sum(time_mask));
 
 % Channels
 mfile_csd = matfile(fullfile(sr_dirs.results, sample_day, sprintf('csd_%s.mat', sample_region)));
-probe_chan_inds = cellfun(@(name) find(strcmp(mfile_csd.chan_names, name)), sample_channames);
-abs_chan_inds = mfile_csd.chans(1, probe_chan_inds) + chan_offset;
-chan_struct = struct(sample_probe, abs_chan_inds);
+probe_chan_ind = find(strcmp(mfile_csd.chan_names, sample_channames{1}));
+abs_chan_ind = mfile_csd.chans(1, probe_chan_ind) + chan_offset;
+chan_struct = struct(sample_probe, abs_chan_ind);
 
 %% Raw LFP
 
 % Load raw data
 data_mfile = matfile(fullfile(sr_dirs.processed_lfp, sprintf('meanSub_%s_%s.mat', sample_day, sample_time)));
-lfp_full = organize_lfp(data_mfile, chan_struct);
-srate = 1000;
-lfp_segment = lfp_full(1, timerange_offset(1)*srate:timerange_offset(2)*srate);
+srate = data_mfile.finalSampR;
+data_range = timerange_offset(1)*srate:timerange_offset(2)*srate;
+lfp_segment = organize_lfp(data_mfile, chan_struct, [], [], [], data_range);
 xaxis_lfp = linspace(0, sample_timerange(2) - sample_timerange(1), length(lfp_segment));
 
 h_lfp = figure('Position', figpos);
+h_lfp.Renderer = 'painters';
 plot(xaxis_lfp, 1000 * lfp_segment, 'k', 'LineWidth', 1);
 title('Raw LFP');
 xlabel('Time (s)');
 ylabel('Potential (uV)');
 set(gca, 'FontSize', 16, 'FontName', 'Arial', 'XGrid', 'on', 'Box', 'off');
+
+%% Raw LFP callouts (pre- and post-transition)
+
+mid_sample = 1 + (data_range(end)-data_range(1)) / 2;
+callout_offset = srate * 10; % start 10 seconds before and after transition
+callout_length = srate * 6; % 6 seconds (1 window)
+pre_samps = mid_sample - (callout_offset + (callout_length:-1:1));
+post_samps = mid_sample + callout_offset + (1:callout_length);
+
+% plot patches in LFP figure corresponding to callouts
+figure(h_lfp);
+lfp_ylim = get(gca, 'YLim');
+hold on;
+x_pre = xaxis_lfp(pre_samps([1, end, end, 1]));
+patch(x_pre, repelem(lfp_ylim, 2), repelem(-1, 4), 'r', 'FaceAlpha', 0.3, 'LineStyle', 'none');
+x_post = xaxis_lfp(post_samps([1, end, end, 1]));
+patch(x_post, repelem(lfp_ylim, 2), repelem(-1, 4), 'b', 'FaceAlpha', 0.3, 'LineStyle', 'none');
+
+callout_pos = [0, 0, 295, 84];
+h_pre = figure('Position', callout_pos);
+plot(lfp_segment(pre_samps), 'k', 'LineWidth', 1);
+xticks([]);
+yticks([]);
+set(gca, 'XColor', 'r');
+set(gca, 'YColor', 'r');
+
+h_post = figure('Position', callout_pos);
+plot(lfp_segment(post_samps), 'k', 'LineWidth', 1);
+xticks([]);
+yticks([]);
+set(gca, 'XColor', 'b');
+set(gca, 'YColor', 'b');
 
 %% Raw spectrogram (unused)
 

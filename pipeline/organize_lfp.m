@@ -1,4 +1,5 @@
-function [lfp_organized, chans_used] = organize_lfp(data_s, req_chans, noise_inds, need_data, b_snippits)
+function [lfp_organized, chans_used] = organize_lfp(data_s, req_chans, noise_inds, need_data, ...
+                                                    b_snippits, time_inds)
 % Returns a nchan x ntime LFP matrix with channels in data_s reordered according to
 % map in data_s. The input can also be a matfile object.
 %
@@ -41,12 +42,15 @@ function [lfp_organized, chans_used] = organize_lfp(data_s, req_chans, noise_ind
 
 if isstruct(data_s)
     in_ds = @isfield;
+    get_n_time = @(s, field, dim) size(s.field, dim);
 else
     assert(isa(data_s, 'matlab.io.MatFile'), 'Invalid data_s');
     in_ds = @isprop;
+    get_n_time = @size;
 end
 
-if ~exist('b_snippits', 'var') || ~b_snippits
+if ~exist('b_snippits', 'var') || isempty(b_snippits) || ~b_snippits
+    b_snippits = false;
     if in_ds(data_s, 'meanSubFullTrace')
         lfp_field = 'meanSubFullTrace';
     else
@@ -54,6 +58,7 @@ if ~exist('b_snippits', 'var') || ~b_snippits
         warning('Input appears to be raw data - may contain artifacts, noise, etc.');
         lfp_field = 'LFPData';
     end
+    n_time = get_n_time(data_s, lfp_field, 2);
 else
     if in_ds(data_s, 'dataSnippits')
         lfp_field = 'dataSnippits';
@@ -61,6 +66,11 @@ else
         assert(in_ds(data_s, 'meanSubData'), 'Snippit data not found in loaded dataset.');
         lfp_field = 'meanSubData';
     end
+    n_time = get_n_time(data_s, lfp_field, 3);
+end
+
+if ~exist('time_inds', 'var') || isempty(time_inds)
+    time_inds = 1:n_time;
 end
 
 % find what indices we have
@@ -182,8 +192,20 @@ for kP = 1:n_probes
 end
 
 if ~exist('need_data', 'var') || isempty(need_data) || need_data
-    lfp_all = data_s.(lfp_field); % for mfile
-    lfp_organized = lfp_all(indices_to_use, :, :);
+    if isscalar(indices_to_use)
+        if b_snippits
+            lfp_organized = data_s.(lfp_field)(indices_to_use, :, time_inds);
+        else
+            lfp_organized = data_s.(lfp_field)(indices_to_use, time_inds);
+        end
+    else
+        lfp_all = data_s.(lfp_field); % for mfile
+        if b_snippits
+            lfp_organized = lfp_all(indices_to_use, :, time_inds);
+        else
+            lfp_organized = lfp_all(indices_to_use, time_inds);
+        end
+    end
 else
     lfp_organized = [];
 end
